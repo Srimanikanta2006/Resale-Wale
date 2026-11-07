@@ -6,14 +6,14 @@
 [![LightGBM](https://img.shields.io/badge/Model-LightGBM_Regressor-brightgreen)](https://lightgbm.readthedocs.io/)
 [![R2 Score](https://img.shields.io/badge/Holdout_R²-0.9640-blue)](models/)
 [![MAPE](https://img.shields.io/badge/Test_MAPE-8.03%25-success)](reports/)
-[![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white)](http://localhost:8000)
-[![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B?logo=streamlit&logoColor=white)](http://localhost:8501)
+[![FastAPI](https://img.shields.io/badge/Production_Backend-FastAPI-009688?logo=fastapi&logoColor=white)](http://localhost:8000)
+[![Interface](https://img.shields.io/badge/UI-Interactive_HTML5_Canvas-111111)](http://localhost:8000)
 [![Pytest](https://img.shields.io/badge/Tests-Passing-brightgreen?logo=pytest)](tests/)
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 
 **An Enterprise-Grade, Machine Learning Marketplace Valuation System with Domain Feature Engineering, Explainable AI, and Interactive Pricing Intelligence.**
 
-[Live Web App (Port 8000)](http://localhost:8000) • [Streamlit Studio (Port 8501)](http://localhost:8501) • [Research Notebook](notebooks/used_car_valuation_study.ipynb)
+[Live Web Application (Port 8000)](http://localhost:8000) • [Research Notebook](notebooks/used_car_valuation_study.ipynb)
 
 </div>
 
@@ -71,7 +71,7 @@ This project delivers an end-to-end Machine Learning system strictly addressing 
   [Interpretability] ──► Global & Local TreeExplainer SHAP Values
           │
           ▼
-  [Production Serving] ─► Serialized Pipeline (models/) + Streamlit Web App (app/)
+  [Production Serving] ─► Serialized Pipeline (models/) + Web Application (static/)
 ```
 
 ### Key Engineering Decisions (ML Best Practices):
@@ -162,35 +162,27 @@ SHAP (TreeExplainer) attribution confirms strong alignment with automotive econo
 
 ---
 
-## 🖥️ 7. Web Applications & Interfaces
+## 🖥️ 7. Web Application & Interactive Platform
 
-This project provides two production interfaces:
-
-### A. Resale Wale Flagship Web Application (`http://localhost:8000`)
-Powered by FastAPI (`src/api_server.py`) and single-file modern architecture (`static/index.html`):
+The platform is served by a high-performance FastAPI server (`src/api_server.py`) delivering a single-file, light-themed responsive web application (`static/index.html`):
 - **Kindred Dot-Matrix Canvas Hero**:
   - Live `<canvas>` rendering 2 Creation-of-Adam hands reaching toward each other in a black dot-matrix / LED halftone scanline pattern.
   - Slices a 2x2 Higgsfield photographic luminance sheet into pre-downscaled tiles, drawing into offscreen field buffers `fA` (Pose A: pointing pair) and `fB` (Pose B: open pair).
   - 20-second counter-phase continuous drift, breathing scale, roll rotation, and periodic glitch-dissolve pose switches with row streaks and sparkle fronts.
   - Center quiet zone preserving title legibility, rainbow spectrum underglow CTA pill, and inline SVG automotive brand logos.
-- **Integrated Stitch Valuation Terminal (4 Synchronized Views)**:
-  1. **Valuation Estimator**: Real-time pricing calculator for all 8 parameters with live confidence intervals, Trade-In, Private Party, and Dealer Retail bands, plus 3-year depreciation curves.
+- **Unified Resale Wale Appraisal Workbench**:
+  1. **Valuation Estimator**: Real-time pricing calculator for all 8 parameters with live confidence intervals, Trade-In, Private Party, and Dealer Retail bands, plus 5-year depreciation schedules.
   2. **Explainable AI & Diagnostics**: Interactive SHAP waterfall chart, top 5 value drivers, and counterfactual simulation sandbox ("What if I drove 15k fewer miles or detailed to Excellent?").
-  3. **Marketplace Intelligence**: Live interactive scatter plot of comps, regression line, brand tier filtering, and market comps table.
+  3. **Marketplace Intelligence & Comps**: Live interactive scatter plot of comps, regression line, brand tier filtering, and market comps table directly querying the 25,000 dataset.
   4. **MLOps & Model Benchmarks**: Live model telemetry, latency benchmarks, full 6-model comparison table, and slice-based error analysis across age, brand tier, and condition.
-
-### B. Streamlit Valuation Studio (`http://localhost:8501`)
-Powered by Streamlit (`app/app.py`) for rapid ML diagnosis, feature importance charts, and model governance reports.
 
 ---
 
 ## 📂 8. Repository Structure
 
 ```
-Resail Wale/
+Resale Wale/
 ├── .venv/                         # Project virtual environment
-├── app/
-│   └── app.py                     # Interactive Streamlit application
 ├── data/
 │   └── used_cars_marketplace.csv  # 25,000-sample curated marketplace dataset
 ├── models/
@@ -204,7 +196,7 @@ Resail Wale/
 │   ├── slice_analysis_*.csv       # Slice-based evaluation breakdowns
 │   └── test_evaluation_summary.json# Test metrics & 95% bootstrap CIs
 ├── static/
-│   ├── index.html                 # Flagship Kindred Dot-Matrix + Stitch Web App
+│   ├── index.html                 # Flagship Resale Wale Web App (Single-file)
 │   └── hands.webp                 # Cached Higgsfield 2x2 hands photo sheet
 ├── src/
 │   ├── __init__.py
@@ -217,6 +209,7 @@ Resail Wale/
 ├── tests/
 │   └── test_pipeline.py           # Pytest suite for preprocessing, logic & inference
 ├── requirements.txt               # Pinned Python package dependencies
+├── LICENSE                        # MIT License
 └── README.md                      # Comprehensive project documentation
 ```
 
@@ -250,15 +243,9 @@ python src/eda_analysis.py
 python src/train.py
 ```
 
-### 4. Launch Flagship Web App (Kindred Dot-Matrix + Stitch Terminal)
+### 4. Launch Production Web App
 ```bash
 python src/api_server.py
 ```
 Open [http://localhost:8000](http://localhost:8000) in your browser.
-
-### 5. Launch Streamlit Studio
-```bash
-streamlit run app/app.py
-```
-Open [http://localhost:8501](http://localhost:8501) in your browser.
 
