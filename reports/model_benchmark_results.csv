@@ -1,0 +1,7 @@
+RMSE,MAE,MedAE,MAPE (%),R2,Model,Train_Time_Sec
+11596.61,8560.52,7188.6,75.24,-0.0,Naive Baseline (Mean),0.0
+11801.01,8367.5,6723.11,65.22,-0.0356,Naive Baseline (Median),0.0
+2811.35,1711.99,1050.34,9.33,0.9412,Ridge Regression,0.11
+2430.94,1567.2,987.99,8.74,0.9561,Random Forest Regressor,1.43
+2219.99,1438.34,909.03,7.96,0.9634,XGBoost Regressor,0.53
+2204.68,1429.57,898.68,7.95,0.9639,LightGBM Regressor,0.47

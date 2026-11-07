@@ -1,0 +1,47 @@
+{
+    "manufacturers": [
+        "Nissan",
+        "Hyundai",
+        "Toyota",
+        "Honda",
+        "Ford",
+        "Chevrolet",
+        "Volkswagen",
+        "Audi",
+        "BMW",
+        "Mercedes-Benz"
+    ],
+    "fuel_types": [
+        "Petrol",
+        "Diesel",
+        "Hybrid",
+        "Electric"
+    ],
+    "transmissions": [
+        "Automatic",
+        "Manual"
+    ],
+    "conditions": [
+        "Fair",
+        "Good",
+        "Very Good",
+        "Excellent"
+    ],
+    "min_year": 2008,
+    "max_year": 2024,
+    "engine_capacity_range": [
+        0,
+        5038
+    ],
+    "mileage_range": [
+        1885,
+        280000
+    ],
+    "metrics": {
+        "RMSE": 2137.48,
+        "MAE": 1419.02,
+        "MedAE": 919.74,
+        "MAPE (%)": 8.03,
+        "R2": 0.964
+    }
+}

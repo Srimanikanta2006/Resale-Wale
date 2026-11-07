@@ -1,0 +1,26 @@
+{
+    "best_model": "LightGBM Regressor",
+    "metrics": {
+        "RMSE": 2137.48,
+        "MAE": 1419.02,
+        "MedAE": 919.74,
+        "MAPE (%)": 8.03,
+        "R2": 0.964
+    },
+    "confidence_intervals_95": {
+        "RMSE": {
+            "lower": 2045.03,
+            "upper": 2239.42
+        },
+        "MAE": {
+            "lower": 1373.45,
+            "upper": 1470.31
+        },
+        "MAPE": {
+            "lower": 7.84,
+            "upper": 8.22
+        }
+    },
+    "cv_5fold_mape_mean": 8.03,
+    "cv_5fold_mape_std": 0.12
+}
