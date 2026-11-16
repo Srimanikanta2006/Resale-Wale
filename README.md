@@ -3,249 +3,191 @@
 <div align="center">
 
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://python.org)
-[![LightGBM](https://img.shields.io/badge/Model-LightGBM_Regressor-brightgreen)](https://lightgbm.readthedocs.io/)
-[![R2 Score](https://img.shields.io/badge/Holdout_R²-0.9640-blue)](models/)
-[![MAPE](https://img.shields.io/badge/Test_MAPE-8.03%25-success)](reports/)
-[![FastAPI](https://img.shields.io/badge/Production_Backend-FastAPI-009688?logo=fastapi&logoColor=white)](http://localhost:8000)
-[![Interface](https://img.shields.io/badge/UI-Interactive_HTML5_Canvas-111111)](http://localhost:8000)
-[![Pytest](https://img.shields.io/badge/Tests-Passing-brightgreen?logo=pytest)](tests/)
-[![License](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
+[![LightGBM](https://img.shields.io/badge/Model-Monotonic_LightGBM-brightgreen)](https://lightgbm.readthedocs.io/)
+[![R2 Score](https://img.shields.io/badge/Holdout_R%C2%B2-0.9629-blue)](reports/metrics.json)
+[![MAPE](https://img.shields.io/badge/Holdout_MAPE-8.14%25-success)](reports/metrics.json)
+[![FastAPI](https://img.shields.io/badge/Backend-FastAPI_REST-009688?logo=fastapi&logoColor=white)](http://localhost:8000)
+[![Pytest](https://img.shields.io/badge/Tests-8%20Passed-brightgreen?logo=pytest)](tests/)
+[![Single Source](https://img.shields.io/badge/Truth-reports%2Fmetrics.json-purple)](reports/metrics.json)
 
-**An Enterprise-Grade, Machine Learning Marketplace Valuation System with Domain Feature Engineering, Explainable AI, and Interactive Pricing Intelligence.**
+**A Clean 8-Feature Automobile Valuation Engine with Monotonic Gradient Boosted Trees, Asymmetric Prediction Intervals, and TreeSHAP Explainability.**
 
-[Live Web Application (Port 8000)](http://localhost:8000) • [Research Notebook](notebooks/used_car_valuation_study.ipynb)
+[Live Web Interface (Port 8000)](http://localhost:8000) • [API Documentation](http://localhost:8000/docs) • [Unified Metrics](reports/metrics.json)
 
 </div>
 
 ---
 
-## 📌 1. Project Overview & Problem Statement
-Used automobile marketplaces (such as *Kelley Blue Book*, *Edmunds*, *Cars24*, *Carvana*, *Autotrader*, *CarDekho*) require high-precision automated pricing engines to calculate fair resale prices, eliminate pricing friction between buyers and sellers, and protect dealer margins.
+## 📌 1. Operational Scope & Problem Statement
+Used automobile marketplaces require transparent, data-driven pricing engines to calculate fair resale prices. This system is designed as a **clean 8-input → price tool**, honest about what its 25,000 transaction records can and cannot cover:
 
-This project delivers an end-to-end Machine Learning system strictly addressing all 8 required features:
-1. **Manufacturer (Brand)**: e.g., Toyota, Honda, Ford, Chevrolet, Nissan, Hyundai, Volkswagen, BMW, Mercedes-Benz, Audi
-2. **Model Year**: Year of vehicle manufacture (2008–2024)
-3. **Mileage**: Total odometer reading (miles)
-4. **Engine Capacity**: Engine displacement in cubic centimeters (cc) / Liters (with 0 cc handling for Electric vehicles)
-5. **Fuel Type**: Petrol, Diesel, Hybrid, Electric
-6. **Transmission**: Automatic, Manual
-7. **Number of Owners**: 1st Owner, 2nd Owner, 3rd Owner, 4th+ Owner
-8. **Condition**: Fair, Good, Very Good, Excellent
+### Valid Operational Domain:
+- **10 Manufacturers**: Toyota, Honda, Ford, Chevrolet, Nissan, Hyundai, Volkswagen, Audi, BMW, Mercedes-Benz
+- **Model Years**: 2008 – 2024 (valued as of **2024 calendar market baseline**, unindexed for subsequent macro inflation)
+- **Odometer Range**: 500 – 300,000 miles
+- **8 Core Vehicular Features (strictly respecting the problem statement)**:
+  1. `manufacturer` (Make)
+  2. `model_year` (2008–2024)
+  3. `mileage` (Odometer in miles)
+  4. `engine_capacity` (Displacement in cc; strictly 0 cc for Electric vehicles)
+  5. `fuel_type` (Petrol, Diesel, Hybrid, Electric)
+  6. `transmission` (Automatic, Manual; strictly Automatic for Electric vehicles)
+  7. `number_of_owners` (1, 2, 3, 4+ Owners)
+  8. `condition` (Fair, Good, Very Good, Excellent)
+- **Target**: `resale_price` in USD ($).
 
-**Target Variable**: Resale Market Value (`resale_price` in USD).
+*Note on Boundaries:* Specific vehicle trim packages, exterior colors, and regional taxes are omitted because they are not present in the 8-feature problem statement.
 
 ---
 
-## 🏗️ 2. Architecture & ML Methodology
+## 🏗️ 2. Methodology & ML Best Practices
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              RESALE WALE ML PIPELINE                         │
+│                           RESALE WALE ML ARCHITECTURE                       │
 └─────────────────────────────────────────────────────────────────────────────┘
-          │
-          ▼
-  [Data Ingestion] ────► 25,000 Realistic Market Transactions (data/)
-          │
-          ▼
-  [Strict Ordering] ───► Train (70%) / Validation (15%) / Test (15%) Holdout
-          │
-          ▼
-  [Feature Engineering] ──► Vehicle Age, Annual Mileage, Mileage Deviation,
-                             Brand Prestige Tier, Engine Displacement Tier,
-                             Holistic Wear & Tear Index
-          │
-          ▼
-  [Preprocessing] ─────► StandardScaler (Num), OrdinalEncoder (Condition),
-                             OneHotEncoder (Categoricals)
-          │
-          ▼
-  [Log-Target Regressor] ► log1p(resale_price) Variance Stabilization
-          │
-          ▼
-  [Model Benchmark] ───► Naive Mean/Median, Ridge, Random Forest, XGBoost, LightGBM
-          │
-          ▼
-  [Rigorous Validation] ► 5-Fold Cross Validation + 1,000 Bootstrap 95% CIs
-          │
-          ▼
-  [Interpretability] ──► Global & Local TreeExplainer SHAP Values
-          │
-          ▼
-  [Production Serving] ─► Serialized Pipeline (models/) + Web Application (static/)
+                                      │
+                                      ▼
+             [Data Ingestion] ────► 25,000 Marketplace Records (data/)
+                                      │
+                                      ▼
+             [Strict Split]   ────► Train (70%) / Val (15%) / Test (15%) Holdout
+                                      │
+                                      ▼
+             [Domain Features]───► vehicle_age, annual_mileage, mileage_vs_expected,
+                                    brand_tier, engine_tier, wear_index
+                                      │
+                                      ▼
+             [Preprocessing]  ───► StandardScaler, OrdinalEncoder, OneHotEncoder
+                                      │
+                                      ▼
+             [Monotonic Trees]───► LightGBM with Monotone Constraints
+                                      │
+                                      ▼
+             [Target Modeling]───► TransformedTargetRegressor(log1p, expm1)
+                                      │
+                                      ▼
+             [Residual Quantiles]► Asymmetric 95% Prediction Interval in Log Space
+                                      │
+                                      ▼
+             [Explainability] ───► TreeSHAP (Base Price + Drivers = Total)
 ```
 
-### Key Engineering Decisions (ML Best Practices):
-1. **Strict Featurization Ordering**: Datasets were cleanly partitioned into Train, Validation, and Test sets *prior* to fitting any scalers or encoders, eliminating data leakage.
-2. **Log-Transformed Target Modeling**: Automobile prices exhibit right-skew and heteroscedasticity. By training on $\log(1 + y)$ and transforming back with $\exp(y) - 1$, predictions are guaranteed positive and optimization directly minimizes **Mean Absolute Percentage Error (MAPE)**.
-3. **Domain Feature Engineering**:
-   - `vehicle_age = 2024 - model_year`
-   - `annual_mileage = mileage / max(vehicle_age, 0.5)`
-   - `mileage_vs_expected = mileage - (vehicle_age * 12,000)` (identifies abused vs. garage-kept cars)
-   - `brand_tier = Economy | Mainstream | Luxury`
-   - `engine_tier = SubCompact (<1.4L) | Compact_Midsize (1.4-2.2L) | Large_V6 (2.2-3.5L) | Performance_V8 (>3.5L) | Zero_EV (0 cc)`
-   - `wear_index = (age * 0.40) + (owners * 0.70) + (annual_mileage / 10,000 * 0.35)`
+### Core Engineering Decisions:
+1. **Strict Featurization Ordering**: Data was cleanly partitioned into Train (17,499), Validation (3,751), and Holdout Test (3,750) sets **before** fitting any scalers or encoders, eliminating all data leakage.
+2. **Log-Transformed Target**: Automobile prices are right-skewed and heteroscedastic. By training on $\log(1 + y)$ and inverse-transforming with $\exp(\hat{z}) - 1$, predictions are guaranteed positive and percentage error (MAPE) is minimized.
+3. **Monotonic Constraints**: LightGBM enforces strict economic monotonicity:
+   - More mileage never raises price ($\le 0$).
+   - Older vehicle age never raises price ($\le 0$).
+   - More previous owners never raises price ($\le 0$).
+   - Superior condition grade never lowers price ($\ge 0$).
+4. **Asymmetric 95% Prediction Intervals**: Derived from validation set empirical residual quantiles in log space ($q_{0.025} = -0.1965$, $q_{0.975} = +0.1848$). Exponentiating to dollar space naturally produces an asymmetric prediction interval reflecting price dispersion, achieving **93.15% coverage** on unseen test data.
 
 ---
 
-## 📊 3. Model Benchmark Results
+## 📊 3. Performance Metrics (Single Source of Truth: `reports/metrics.json`)
 
-All candidate models were trained on the training partition (17,499 records) and evaluated on identical validation partitions (3,751 records):
-
-| Model Architecture | RMSE ($) | MAE ($) | MAPE (%) | $R^2$ Score | Training Time (s) |
+### Candidate Benchmark Comparison (Trained on 70% Train, Evaluated on 15% Validation)
+| Model Architecture | RMSE ($) | MAE ($) | MAPE (%) | $R^2$ Score | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Naive Baseline (Mean)** | \$11,596.61 | \$8,560.52 | 75.24% | -0.0000 | 0.00s |
-| **Naive Baseline (Median)** | \$11,801.01 | \$8,367.50 | 65.22% | -0.0356 | 0.00s |
-| **Ridge Regression (L2)** | \$2,811.35 | \$1,711.99 | 9.33% | 0.9412 | 0.11s |
-| **Random Forest Regressor** | \$2,430.94 | \$1,567.20 | 8.74% | 0.9561 | 1.43s |
-| **XGBoost Regressor** | \$2,219.99 | \$1,438.34 | 7.96% | 0.9634 | 0.53s |
-| **LightGBM Regressor (Winner)** | **\$2,204.68** | **\$1,429.57** | **7.95%** | **0.9639** | **0.47s** |
+| **Naive Baseline (Mean)** | $11,596.61 | $8,560.52 | 75.24% | -0.0000 | Rejected Baseline |
+| **Naive Baseline (Median)** | $11,801.01 | $8,367.50 | 65.22% | -0.0356 | Rejected Baseline |
+| **Ridge Regression (L2)** | $2,811.35 | $1,711.99 | 9.33% | 0.9412 | Linear Baseline |
+| **Random Forest (100 Trees)** | $2,430.94 | $1,567.20 | 8.74% | 0.9561 | Benchmark Candidate |
+| **XGBoost Regressor** | $2,219.99 | $1,438.34 | 7.96% | 0.9634 | Benchmark Candidate |
+| **LightGBM Regressor (Winner)** | **$2,254.93** | **$1,472.60** | **8.19%** | **0.9622** | **Production Winner** |
 
-### 5-Fold Cross Validation (Stability Check):
-- Fold 1: 8.00% MAPE
-- Fold 2: 8.26% MAPE
-- Fold 3: 7.92% MAPE
-- Fold 4: 8.00% MAPE
-- Fold 5: 7.96% MAPE
-- **Mean CV MAPE**: **8.03% ($\pm 0.12\%$)**
-
----
-
-## 🎯 4. Final Holdout Test Set Performance & Statistical Rigor
-
-The final winning pipeline was refit on Train+Val and evaluated on the held-out **Test Set (3,750 unseen vehicles)**:
-
-| Metric | Point Estimate | 95% Bootstrap Confidence Interval (1,000 runs) |
-| :--- | :---: | :---: |
-| **$R^2$ Score** | **0.9640** | [0.9602, 0.9674] |
-| **MAPE (%)** | **8.03%** | **[7.84%, 8.22%]** |
-| **MAE ($)** | **\$1,419.02** | **[\$1,373.45, \$1,470.31]** |
-| **RMSE ($)** | **\$2,137.48** | **[\$2,045.03, \$2,239.42]** |
-| **Median AE ($)**| **\$919.74** | -- |
+### Final Champion Model (Refit on 21,250 records, Evaluated on 3,750 Held-Out Test Set)
+- **Holdout Test MAPE**: **8.14%** (95% Bootstrap CI: **[7.95%, 8.34%]**)
+- **Holdout Test $R^2$ Score**: **0.9629**
+- **Mean Absolute Error (MAE)**: **$1,437.13** (Median AE: **$938.12**)
+- **Root Mean Squared Error (RMSE)**: **$2,167.80**
+- **5-Fold Cross Validation Mean MAPE**: **8.22% ($\pm 0.15\%$)**
+- **Inference Latency**: **14.8 ms** (Real-time REST API)
 
 ---
 
-## 🔍 5. Slice-Based Error Analysis
+## 🧪 4. Sanity Test Suite
+Automated pytest tests in `tests/test_pipeline.py` enforce behavioral consistency:
 
-To ensure no hidden algorithmic bias across sub-populations, slice-based evaluations were conducted:
+| Sanity Check | Test Condition | Status |
+| :--- | :--- | :---: |
+| **Mileage Monotonicity** | As mileage increases from 15k to 140k mi, price strictly decreases | **PASSED** |
+| **Age Monotonicity** | As model year decreases (age increases), price strictly decreases | **PASSED** |
+| **Owner Monotonicity** | As owner count increases from 1 to 4, price strictly decreases | **PASSED** |
+| **Condition Monotonicity** | Fair < Good < Very Good < Excellent | **PASSED** |
+| **EV Constraints** | Electric fuel type forces 0 cc displacement and Automatic transmission | **PASSED** |
+| **Non-Negative Guarantee** | Even at 320,000 miles, 2008 year, Fair condition, price remains > 0 | **PASSED** |
+| **Prediction Interval** | 95% log-space prediction interval covers point estimate | **PASSED** |
 
-### Vehicle Age Slices:
-| Age Bracket | Sample Count | RMSE ($) | MAE ($) | MAPE (%) | $R^2$ Score |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **< 3 Years (Newer)** | 926 | \$3,260.46 | \$2,392.35 | 8.01% | 0.9265 |
-| **3–7 Years (Mid-Age)** | 1,446 | \$2,044.02 | \$1,485.82 | 7.97% | 0.9170 |
-| **7–12 Years (Mature)** | 1,054 | \$1,034.23 | \$769.86 | 7.91% | 0.9259 |
-| **> 12 Years (Older)** | 324 | \$609.32 | \$450.84 | 8.71% | 0.8405 |
-
-### Brand Market Tier Slices:
-| Brand Tier | Sample Count | RMSE ($) | MAE ($) | MAPE (%) | $R^2$ Score |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Economy (Nissan, Hyundai)** | 777 | \$1,301.21 | \$950.09 | 7.77% | 0.9573 |
-| **Mainstream (Toyota, Honda, Ford, Chevy, VW)** | 2,330 | \$1,853.59 | \$1,309.34 | 8.00% | 0.9494 |
-| **Luxury (BMW, Mercedes-Benz, Audi)** | 643 | \$3,485.60 | \$2,383.11 | 8.42% | 0.9585 |
-
-### Condition Grade Slices:
-| Condition Grade | Sample Count | RMSE ($) | MAE ($) | MAPE (%) | $R^2$ Score |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Fair** | 716 | \$689.68 | \$527.84 | 8.50% | 0.9021 |
-| **Good** | 1,168 | \$1,435.33 | \$1,037.17 | 7.81% | 0.9221 |
-| **Very Good** | 1,369 | \$2,437.75 | \$1,780.95 | 7.98% | 0.9240 |
-| **Excellent** | 497 | \$3,546.40 | \$2,603.32 | 7.99% | 0.9241 |
-
----
-
-## 💡 6. SHAP Explainability & Global Attribution
-SHAP (TreeExplainer) attribution confirms strong alignment with automotive economic fundamentals:
-- **Vehicle Age & Model Year**: The dominant drivers of value decay across all segments.
-- **Brand Prestige Tier**: Strong positive shift for European luxury brands (BMW, Mercedes, Audi) and high retention for Toyota/Honda.
-- **Condition Grading**: "Excellent" adds a noticeable positive shift, while "Fair" applies a steep negative penalty for required mechanical reconditioning.
-- **Mileage vs. Expected**: Vehicles driven significantly less than 12,000 miles/year earn preservation premiums; excess mileage triggers progressive penalties.
-
----
-
-## 🖥️ 7. Web Application & Interactive Platform
-
-The platform is served by a high-performance FastAPI server (`src/api_server.py`) delivering a single-file, light-themed responsive web application (`static/index.html`):
-- **Kindred Dot-Matrix Canvas Hero**:
-  - Live `<canvas>` rendering 2 Creation-of-Adam hands reaching toward each other in a black dot-matrix / LED halftone scanline pattern.
-  - Slices a 2x2 Higgsfield photographic luminance sheet into pre-downscaled tiles, drawing into offscreen field buffers `fA` (Pose A: pointing pair) and `fB` (Pose B: open pair).
-  - 20-second counter-phase continuous drift, breathing scale, roll rotation, and periodic glitch-dissolve pose switches with row streaks and sparkle fronts.
-  - Center quiet zone preserving title legibility, rainbow spectrum underglow CTA pill, and inline SVG automotive brand logos.
-- **Unified Resale Wale Appraisal Workbench**:
-  1. **Valuation Estimator**: Real-time pricing calculator for all 8 parameters with live confidence intervals, Trade-In, Private Party, and Dealer Retail bands, plus 5-year depreciation schedules.
-  2. **Explainable AI & Diagnostics**: Interactive SHAP waterfall chart, top 5 value drivers, and counterfactual simulation sandbox ("What if I drove 15k fewer miles or detailed to Excellent?").
-  3. **Marketplace Intelligence & Comps**: Live interactive scatter plot of comps, regression line, brand tier filtering, and market comps table directly querying the 25,000 dataset.
-  4. **MLOps & Model Benchmarks**: Live model telemetry, latency benchmarks, full 6-model comparison table, and slice-based error analysis across age, brand tier, and condition.
-
----
-
-## 📂 8. Repository Structure
-
-```
-Resale Wale/
-├── .venv/                         # Project virtual environment
-├── data/
-│   └── used_cars_marketplace.csv  # 25,000-sample curated marketplace dataset
-├── models/
-│   ├── car_valuation_pipeline.joblib # Production serialized ML pipeline
-│   └── model_metadata.json        # Pipeline feature schema & metrics metadata
-├── notebooks/
-│   └── used_car_valuation_study.ipynb # Publication-quality narrative notebook
-├── reports/
-│   ├── figures/                   # 8 High-resolution visualizations & SHAP plots
-│   ├── model_benchmark_results.csv# Benchmark comparison across models
-│   ├── slice_analysis_*.csv       # Slice-based evaluation breakdowns
-│   └── test_evaluation_summary.json# Test metrics & 95% bootstrap CIs
-├── static/
-│   ├── index.html                 # Flagship Resale Wale Web App (Single-file)
-│   └── hands.webp                 # Cached Higgsfield 2x2 hands photo sheet
-├── src/
-│   ├── __init__.py
-│   ├── generate_dataset.py        # Realistic automotive benchmark generator
-│   ├── feature_engineering.py     # Domain transformers & ColumnTransformer
-│   ├── train.py                   # Multi-model benchmarking, CV & SHAP
-│   ├── evaluate.py                # Statistical testing, bootstrapping & slices
-│   ├── predict.py                 # Production inference API & depreciation forecaster
-│   └── api_server.py              # FastAPI production server & static dispatcher
-├── tests/
-│   └── test_pipeline.py           # Pytest suite for preprocessing, logic & inference
-├── requirements.txt               # Pinned Python package dependencies
-├── LICENSE                        # MIT License
-└── README.md                      # Comprehensive project documentation
-```
-
----
-
-## 🚀 9. Quickstart Guide
-
-### 1. Activate Environment & Install Dependencies
-```bash
-# On Windows
-.venv\Scripts\activate
-
-# Dependencies are tracked in requirements.txt
-pip install -r requirements.txt
-```
-
-### 2. Run Test Suite
+Run tests anytime:
 ```bash
 pytest tests/
 ```
 
-### 3. Generate Data, Run EDA & Train Models
+---
+
+## 🚀 5. How to Run the Project
+
+### Prerequisites
+- Python 3.10+ (Recommended Python 3.11)
+- Standard dependencies in virtual environment
+
 ```bash
-# Generate 25,000 record dataset
-python src/generate_dataset.py
+# 1. Activate virtual environment
+# Windows PowerShell:
+.\.venv\Scripts\Activate.ps1
+# Linux / macOS:
+source .venv/bin/activate
 
-# Run Exploratory Data Analysis
-python src/eda_analysis.py
+# 2. Install dependencies
+pip install -r requirements.txt
 
-# Benchmark all models & export production pipeline
-python src/train.py
-```
-
-### 4. Launch Production Web App
-```bash
+# 3. Start the FastAPI Production Server
 python src/api_server.py
 ```
-Open [http://localhost:8000](http://localhost:8000) in your browser.
+- Web Application: [http://localhost:8000](http://localhost:8000)
+- Swagger API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 
+### Reproduce Model Training & Metrics from Scratch
+```bash
+python src/train.py
+```
+*Outputs:*
+- `reports/metrics.json` (Single source of truth)
+- `reports/model_benchmark_results.csv`
+- `reports/slice_analysis_*.csv`
+- `models/car_valuation_pipeline.joblib`
+
+### Generate 53-Page Academic Research Report PDF
+```bash
+python src/generate_rmipr_report_pdf.py
+```
+*Output PDF:* `RMIPR_REPORT_FINAL_RESALE_WALE.pdf` (53 pages, A4 format, Ramaiah Institute of Technology RMIPR 24AL58 format).
+
+---
+
+## 📜 6. Repository Structure
+```
+├── data/
+│   └── used_cars_marketplace.csv     # 25,000 transaction records
+├── models/
+│   ├── car_valuation_pipeline.joblib # Serialized production pipeline
+│   └── model_metadata.json           # Model configuration metadata
+├── reports/
+│   ├── metrics.json                  # Single source of truth for metrics
+│   ├── model_benchmark_results.csv   # Validation partition benchmark
+│   └── slice_analysis_*.csv          # Sliced error analysis (Age, Brand, Condition)
+├── src/
+│   ├── api_server.py                 # FastAPI microservice
+│   ├── feature_engineering.py        # Domain transformers & preprocessor
+│   ├── predict.py                    # Valuation engine & TreeSHAP attributions
+│   ├── train.py                      # Monotonic training & governance pipeline
+│   └── generate_rmipr_report_pdf.py  # 53-page RMIPR PDF report generator
+├── static/
+│   └── index.html                    # Responsive web terminal (8 inputs, SHAP, comps)
+├── tests/
+│   └── test_pipeline.py              # 8 automated unit & sanity monotonicity tests
+├── requirements.txt                  # Pinned dependencies
+└── README.md                         # Project documentation
+```

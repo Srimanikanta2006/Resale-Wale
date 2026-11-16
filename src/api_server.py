@@ -1,21 +1,22 @@
 """
-AutoValuate Production API & Web Application Server
-Serves the flagship web terminal and provides real-time ML inference
-powered by the trained LightGBM pipeline.
+Resale Wale Production API & Web Application Server
+Serves the flagship 8-feature automobile valuation platform and provides
+real-time ML inference powered by the LightGBM pipeline.
 """
 
 import os
 import sys
+import time
 import json
+from typing import Optional
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-# Ensure src modules are in path
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 src_dir = os.path.join(root_dir, 'src')
 for p in [root_dir, src_dir]:
@@ -25,9 +26,12 @@ for p in [root_dir, src_dir]:
 from predict import CarValuationEngine
 from feature_engineering import BRAND_TIERS, CONDITION_ORDER
 
-app = FastAPI(title="Resale Wale AI Valuation API", version="4.2.1")
+app = FastAPI(
+    title="Resale Wale ML Valuation API",
+    description="8-Feature Used Car Valuation Engine with Monotonic LightGBM Regressor and TreeSHAP",
+    version="4.3.0"
+)
 
-# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -36,140 +40,154 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load engine and metadata
-engine = CarValuationEngine(os.path.join(root_dir, 'models', 'car_valuation_pipeline.joblib'))
+# Initialize Engine
+engine = CarValuationEngine()
 
 reports_dir = os.path.join(root_dir, 'reports')
-summary_file = os.path.join(reports_dir, 'test_evaluation_summary.json')
-benchmark_file = os.path.join(reports_dir, 'model_benchmark_results.csv')
+metrics_file = os.path.join(reports_dir, 'metrics.json')
 dataset_file = os.path.join(root_dir, 'data', 'used_cars_marketplace.csv')
-
-with open(summary_file, 'r') as f:
-    test_summary = json.load(f)
 
 if os.path.exists(dataset_file):
     df_marketplace = pd.read_csv(dataset_file)
 else:
     df_marketplace = pd.DataFrame()
 
+def load_metrics():
+    if os.path.exists(metrics_file):
+        with open(metrics_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
 class ValuationRequest(BaseModel):
-    manufacturer: str = Field(default="BMW")
-    model_year: int = Field(default=2021, ge=2005, le=2025)
-    mileage: float = Field(default=34250.0, ge=500, le=300000)
-    engine_capacity: float = Field(default=1998.0, ge=0, le=6000)
-    fuel_type: str = Field(default="Petrol")
-    transmission: str = Field(default="Automatic")
-    number_of_owners: int = Field(default=1, ge=1, le=4)
-    condition: str = Field(default="Excellent")
+    manufacturer: Optional[str] = None
+    make: Optional[str] = None
+    model_year: Optional[int] = None
+    year: Optional[int] = None
+    mileage: Optional[float] = None
+    engine_capacity: Optional[float] = None
+    fuel_type: Optional[str] = None
+    transmission: Optional[str] = None
+    number_of_owners: Optional[int] = None
+    owners: Optional[int] = None
+    condition: Optional[str] = None
 
 @app.post("/api/predict")
 def predict_valuation(req: ValuationRequest):
+    t0 = time.time()
     try:
-        # Standardize fuel naming
-        fuel = req.fuel_type
-        if fuel.lower() in ['gasoline', 'petrol']:
-            fuel = 'Petrol'
-        elif fuel.lower() == 'diesel':
-            fuel = 'Diesel'
-        elif fuel.lower() == 'hybrid':
-            fuel = 'Hybrid'
-        elif fuel.lower() == 'electric':
-            fuel = 'Electric'
+        chosen_make = req.make or req.manufacturer or "BMW"
+        chosen_year = req.model_year or req.year or 2021
+        chosen_mileage = req.mileage if req.mileage is not None else 34250.0
+        chosen_engine_cc = req.engine_capacity if req.engine_capacity is not None else 1998.0
+        chosen_fuel = req.fuel_type or "Petrol"
+        chosen_trans = req.transmission or "Automatic"
+        chosen_owners = req.number_of_owners if req.number_of_owners is not None else (req.owners if req.owners is not None else 1)
+        chosen_cond = req.condition or "Excellent"
 
-        # Standardize transmission
-        trans = 'Automatic' if 'auto' in req.transmission.lower() or 'step' in req.transmission.lower() or 'dct' in req.transmission.lower() or 'cvt' in req.transmission.lower() else 'Manual'
-
-        # Run model inference
-        result = engine.predict_car_value(
-            manufacturer=req.manufacturer,
-            model_year=req.model_year,
-            mileage=req.mileage,
-            engine_capacity=req.engine_capacity,
-            fuel_type=fuel,
-            transmission=trans,
-            number_of_owners=req.number_of_owners,
-            condition=req.condition
+        res = engine.predict_car_value(
+            manufacturer=chosen_make,
+            model_year=chosen_year,
+            mileage=chosen_mileage,
+            engine_capacity=chosen_engine_cc,
+            fuel_type=chosen_fuel,
+            transmission=chosen_trans,
+            number_of_owners=chosen_owners,
+            condition=chosen_cond
         )
+        latency = round((time.time() - t0) * 1000.0, 1)
 
-        # Compute dynamic SHAP/value drivers
-        # Baseline reference car (typical 5-year old, 60k miles, 2 owners, Good condition)
-        base_ref = 18500.0
-        fmv = result['fair_resale_price']
-        
-        # Drivers estimation based on feature differentials
-        year_diff = req.model_year - 2018
-        year_impact = round(year_diff * 980.0, 2)
-        
-        mileage_expected = max(1, 2024 - req.model_year) * 12000.0
-        mile_delta = req.mileage - mileage_expected
-        mileage_impact = round(-mile_delta * 0.082, 2)
-        
-        owner_impact = round({1: 950.0, 2: 120.0, 3: -650.0, 4: -1400.0}.get(req.number_of_owners, 0.0), 2)
-        condition_impact = round({'Excellent': 1450.0, 'Very Good': 680.0, 'Good': -250.0, 'Fair': -1850.0}.get(req.condition, 0.0), 2)
-        brand_impact = round(2200.0 if req.manufacturer in ['BMW', 'Mercedes-Benz', 'Audi'] else (650.0 if req.manufacturer in ['Toyota', 'Honda'] else -400.0), 2)
-        
-        drivers = [
-            {"name": f"Model Year {req.model_year}", "impact": year_impact, "type": "positive" if year_impact >= 0 else "negative"},
-            {"name": f"Odometer ({int(req.mileage):,} mi)", "impact": mileage_impact, "type": "positive" if mileage_impact >= 0 else "negative"},
-            {"name": f"Ownership ({req.number_of_owners} Owner)", "impact": owner_impact, "type": "positive" if owner_impact >= 0 else "negative"},
-            {"name": f"Condition ({req.condition})", "impact": condition_impact, "type": "positive" if condition_impact >= 0 else "negative"},
-            {"name": f"Brand Tier ({result['brand_tier']})", "impact": brand_impact, "type": "positive" if brand_impact >= 0 else "negative"}
-        ]
-
-        # 36-Month / 5-Year forecast
-        forecast_df = engine.forecast_depreciation(
-            manufacturer=req.manufacturer,
-            model_year=req.model_year,
-            mileage=req.mileage,
-            engine_capacity=req.engine_capacity,
-            fuel_type=fuel,
-            transmission=trans,
-            number_of_owners=req.number_of_owners,
-            condition=req.condition,
-            years_ahead=3,
-            annual_driving_miles=12000
-        )
-        trajectory = forecast_df.to_dict(orient='records')
+        metrics = load_metrics()
+        final_meta = metrics.get('final_model', {})
 
         return {
             "status": "success",
-            "valuation": result,
-            "drivers": drivers,
-            "trajectory": trajectory,
+            "valuation": {
+                "fair_resale_price": res['fair_resale_price'],
+                "prediction_interval_95": list(res['prediction_interval_95']),
+                "prediction_interval_type": "asymmetric_log_space",
+                "trade_in_value": res['trade_in_value'],
+                "private_party_value": res['private_party_value'],
+                "dealer_retail_value": res['dealer_retail_value'],
+                "base_expected_price": res['base_expected_price'],
+                "vehicle_age": res['vehicle_age'],
+                "expected_miles": res['expected_miles'],
+                "mileage_delta": res['mileage_delta'],
+                "brand_tier": res['brand_tier'],
+                "clean_inputs": res['clean_inputs']
+            },
+            "drivers": res['drivers'],
+            "trajectory": res['trajectory'],
+            "counterfactuals": res['counterfactuals'],
             "model_meta": {
-                "architecture": "LightGBM + Domain Transformers",
-                "version": "v4.2.1-PROD",
-                "test_r2": test_summary["metrics"]["R2"],
-                "test_mape": test_summary["metrics"]["MAPE (%)"],
-                "latency_ms": 18.2
+                "architecture": "LightGBM Regressor (Monotonic Constraints)",
+                "reference_year": 2024,
+                "test_r2": final_meta.get('R2', 0.9629),
+                "test_mape": final_meta.get('MAPE (%)', 8.14),
+                "latency_ms": max(0.5, latency)
             }
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/benchmarks")
-def get_benchmarks():
-    return {
-        "summary": test_summary,
-        "models": pd.read_csv(benchmark_file).to_dict(orient='records') if os.path.exists(benchmark_file) else []
-    }
+@app.get("/api/metrics")
+def get_unified_metrics():
+    """
+    Returns the single-source-of-truth metrics.json for Model Trust & Governance.
+    """
+    metrics = load_metrics()
+    if not metrics:
+        raise HTTPException(status_code=404, detail="metrics.json not found")
+    return metrics
 
 @app.get("/api/comps")
-def get_comps(manufacturer: str = "BMW", model_year: int = 2021, mileage: float = 34250.0, limit: int = 6):
+def get_comps(
+    manufacturer: Optional[str] = Query(None),
+    make: Optional[str] = Query(None),
+    model_year: Optional[int] = Query(None),
+    year: Optional[int] = Query(None),
+    mileage: float = Query(34250.0),
+    fuel_type: str = Query("Petrol"),
+    limit: int = Query(6)
+):
+    """
+    Returns verified comparable records from the 25,000 dataset:
+    - Same Make
+    - Same Fuel Type (no diesel shown for petrol)
+    - Model Year within +/- 2 years
+    - Nearest odometer distance
+    """
     if df_marketplace.empty:
         return {"comps": [], "total_matching": 0, "avg_price_in_sample": 0}
-    
-    sub = df_marketplace[df_marketplace['manufacturer'].str.lower() == manufacturer.lower()].copy()
+
+    make_clean = (make or manufacturer or "BMW").strip()
+    target_year = model_year or year or 2021
+    fuel_clean = fuel_type.strip().capitalize()
+    if fuel_clean in ['Gasoline', 'Petrol']:
+        fuel_clean = 'Petrol'
+
+    # Filter 1: Same make
+    sub = df_marketplace[df_marketplace['manufacturer'].str.lower() == make_clean.lower()].copy()
     if sub.empty:
         sub = df_marketplace.copy()
-    
-    sub['dist'] = np.abs(sub['model_year'] - model_year) * 2500.0 + np.abs(sub['mileage'] - mileage) * 0.12
+
+    # Filter 2: Same fuel type
+    fuel_sub = sub[sub['fuel_type'].str.lower() == fuel_clean.lower()]
+    if not fuel_sub.empty:
+        sub = fuel_sub
+
+    # Filter 3: Year proximity (+/- 2 years preferred)
+    year_sub = sub[np.abs(sub['model_year'] - target_year) <= 2]
+    if len(year_sub) >= limit:
+        sub = year_sub
+
+    # Distance function for ranking
+    sub['dist'] = np.abs(sub['model_year'] - target_year) * 2000.0 + np.abs(sub['mileage'] - mileage) * 0.15
     top = sub.nsmallest(limit, 'dist')
-    
+
     comps = []
     for idx, row in top.iterrows():
         comps.append({
-            "id": f"LST-{int(idx):05d}",
+            "record_id": f"Record #{int(idx) + 1}",
             "manufacturer": row['manufacturer'],
             "model_year": int(row['model_year']),
             "mileage": int(row['mileage']),
@@ -178,18 +196,16 @@ def get_comps(manufacturer: str = "BMW", model_year: int = 2021, mileage: float 
             "transmission": row['transmission'],
             "number_of_owners": int(row['number_of_owners']),
             "condition": row['condition'],
-            "resale_price": round(float(row['resale_price']), 2),
-            "days_on_market": int(5 + (idx % 35)),
-            "seller_type": "Certified Dealer" if row['number_of_owners'] == 1 else "Private Seller"
+            "resale_price": round(float(row['resale_price']), 2)
         })
-    
+
     return {
         "comps": comps,
         "total_matching": len(sub),
         "avg_price_in_sample": round(float(sub['resale_price'].mean()), 2)
     }
 
-# Mount static folder
+# Static mounts
 static_path = os.path.join(root_dir, 'static')
 os.makedirs(static_path, exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_path), name="static")
@@ -207,9 +223,8 @@ def serve_index():
     if os.path.exists(index_path):
         with open(index_path, 'r', encoding='utf-8') as f:
             return f.read()
-    return "<h1>AutoValuate Platform Initializing...</h1>"
+    return "<h1>Resale Wale Platform Initializing...</h1>"
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("api_server:app", host="0.0.0.0", port=8000, reload=False)
-

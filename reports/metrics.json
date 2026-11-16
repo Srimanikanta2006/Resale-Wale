@@ -1,0 +1,298 @@
+{
+    "metadata": {
+        "project": "Resale Wale",
+        "version": "4.3.0",
+        "model_architecture": "LightGBM Regressor (Monotonic Constraints)",
+        "training_records": 21250,
+        "test_records": 3750,
+        "dataset_total": 25000,
+        "reference_year": 2024,
+        "features": [
+            "manufacturer",
+            "model_year",
+            "mileage",
+            "engine_capacity",
+            "fuel_type",
+            "transmission",
+            "number_of_owners",
+            "condition"
+        ],
+        "target": "resale_price",
+        "timestamp": "2026-11-16 18:53:18"
+    },
+    "final_model": {
+        "description": "Refit on 85% Train+Val (21,250 records), evaluated on 3,750 unseen holdout test vehicles",
+        "RMSE": 2167.8,
+        "MAE": 1437.13,
+        "MedAE": 938.12,
+        "MAPE (%)": 8.14,
+        "R2": 0.9629,
+        "latency_ms": 14.8,
+        "base_log_value": 9.5925,
+        "base_expected_price": 14653.7,
+        "prediction_interval_95": {
+            "q_lower_log": -0.1965,
+            "q_upper_log": 0.1848,
+            "empirical_test_coverage_pct": 93.15
+        },
+        "confidence_intervals_95": {
+            "RMSE": {
+                "lower": 2076.05,
+                "upper": 2272.01
+            },
+            "MAE": {
+                "lower": 1390.68,
+                "upper": 1487.11
+            },
+            "MAPE": {
+                "lower": 7.95,
+                "upper": 8.34
+            }
+        },
+        "cross_validation_5fold": {
+            "mean_mape": 8.22,
+            "std_mape": 0.15,
+            "fold_scores": [
+                8.27,
+                8.42,
+                8.0,
+                8.28,
+                8.11
+            ]
+        }
+    },
+    "benchmark_comparison": {
+        "description": "Trained on 70% Train (17,499 records), evaluated on 15% Validation (3,751 records)",
+        "table": [
+            {
+                "RMSE": 11596.61,
+                "MAE": 8560.52,
+                "MedAE": 7188.6,
+                "MAPE (%)": 75.24,
+                "R2": -0.0,
+                "Model": "Naive Baseline (Mean)",
+                "Train_Time_Sec": 0.0
+            },
+            {
+                "RMSE": 11801.01,
+                "MAE": 8367.5,
+                "MedAE": 6723.11,
+                "MAPE (%)": 65.22,
+                "R2": -0.0356,
+                "Model": "Naive Baseline (Median)",
+                "Train_Time_Sec": 0.0
+            },
+            {
+                "RMSE": 2811.35,
+                "MAE": 1711.99,
+                "MedAE": 1050.34,
+                "MAPE (%)": 9.33,
+                "R2": 0.9412,
+                "Model": "Ridge Regression",
+                "Train_Time_Sec": 0.08
+            },
+            {
+                "RMSE": 2430.94,
+                "MAE": 1567.2,
+                "MedAE": 987.99,
+                "MAPE (%)": 8.74,
+                "R2": 0.9561,
+                "Model": "Random Forest Regressor",
+                "Train_Time_Sec": 1.57
+            },
+            {
+                "RMSE": 2219.99,
+                "MAE": 1438.34,
+                "MedAE": 909.03,
+                "MAPE (%)": 7.96,
+                "R2": 0.9634,
+                "Model": "XGBoost Regressor",
+                "Train_Time_Sec": 0.92
+            },
+            {
+                "RMSE": 2254.93,
+                "MAE": 1472.6,
+                "MedAE": 940.3,
+                "MAPE (%)": 8.19,
+                "R2": 0.9622,
+                "Model": "LightGBM Regressor",
+                "Train_Time_Sec": 1.08
+            }
+        ]
+    },
+    "target_transformation_comparison": {
+        "raw_target": {
+            "target_space": "Linear ($y$)",
+            "RMSE": 2264.62,
+            "MAE": 1502.5,
+            "MAPE (%)": 8.69,
+            "R2": 0.9619,
+            "negative_predictions_possible": true
+        },
+        "log_transformed_target": {
+            "target_space": "Log-stabilized (log1p)",
+            "RMSE": 2254.93,
+            "MAE": 1472.6,
+            "MAPE (%)": 8.19,
+            "R2": 0.9622,
+            "negative_predictions_possible": false
+        }
+    },
+    "slice_analysis": {
+        "age_bracket": [
+            {
+                "RMSE": 3290.37,
+                "MAE": 2396.4,
+                "MedAE": 1763.31,
+                "MAPE (%)": 7.99,
+                "R2": 0.9251,
+                "Slice": "< 3 Years (Newer)",
+                "Count": 926
+            },
+            {
+                "RMSE": 2077.26,
+                "MAE": 1516.96,
+                "MedAE": 1140.15,
+                "MAPE (%)": 8.19,
+                "R2": 0.9143,
+                "Slice": "3-7 Years (Mid-Age)",
+                "Count": 1446
+            },
+            {
+                "RMSE": 1080.1,
+                "MAE": 782.97,
+                "MedAE": 564.11,
+                "MAPE (%)": 7.91,
+                "R2": 0.9192,
+                "Slice": "7-12 Years (Mature)",
+                "Count": 1054
+            },
+            {
+                "RMSE": 628.7,
+                "MAE": 467.3,
+                "MedAE": 358.88,
+                "MAPE (%)": 9.09,
+                "R2": 0.8302,
+                "Slice": "> 12 Years (Older)",
+                "Count": 324
+            }
+        ],
+        "brand_tier": [
+            {
+                "RMSE": 1310.67,
+                "MAE": 960.33,
+                "MedAE": 679.43,
+                "MAPE (%)": 8.04,
+                "R2": 0.9567,
+                "Slice": "Economy",
+                "Count": 777
+            },
+            {
+                "RMSE": 1872.47,
+                "MAE": 1318.12,
+                "MedAE": 924.16,
+                "MAPE (%)": 8.01,
+                "R2": 0.9484,
+                "Slice": "Mainstream",
+                "Count": 2330
+            },
+            {
+                "RMSE": 3553.3,
+                "MAE": 2444.57,
+                "MedAE": 1445.22,
+                "MAPE (%)": 8.74,
+                "R2": 0.9569,
+                "Slice": "Luxury",
+                "Count": 643
+            }
+        ],
+        "condition": [
+            {
+                "RMSE": 719.73,
+                "MAE": 536.99,
+                "MedAE": 408.3,
+                "MAPE (%)": 8.64,
+                "R2": 0.8934,
+                "Slice": "Fair",
+                "Count": 716
+            },
+            {
+                "RMSE": 1453.75,
+                "MAE": 1048.13,
+                "MedAE": 787.87,
+                "MAPE (%)": 7.89,
+                "R2": 0.9201,
+                "Slice": "Good",
+                "Count": 1168
+            },
+            {
+                "RMSE": 2482.74,
+                "MAE": 1809.44,
+                "MedAE": 1365.3,
+                "MAPE (%)": 8.11,
+                "R2": 0.9211,
+                "Slice": "Very Good",
+                "Count": 1369
+            },
+            {
+                "RMSE": 3572.96,
+                "MAE": 2622.57,
+                "MedAE": 1966.1,
+                "MAPE (%)": 8.1,
+                "R2": 0.923,
+                "Slice": "Excellent",
+                "Count": 497
+            }
+        ]
+    },
+    "global_shap_importance": [
+        {
+            "feature": "num__wear_index",
+            "mean_abs_shap_log": 0.2224
+        },
+        {
+            "feature": "num__model_year",
+            "mean_abs_shap_log": 0.1378
+        },
+        {
+            "feature": "cat__brand_tier_Luxury",
+            "mean_abs_shap_log": 0.1184
+        },
+        {
+            "feature": "cat__brand_tier_Economy",
+            "mean_abs_shap_log": 0.0717
+        },
+        {
+            "feature": "ord__condition",
+            "mean_abs_shap_log": 0.0699
+        },
+        {
+            "feature": "num__mileage",
+            "mean_abs_shap_log": 0.0465
+        },
+        {
+            "feature": "num__engine_capacity",
+            "mean_abs_shap_log": 0.0382
+        },
+        {
+            "feature": "cat__fuel_type_Petrol",
+            "mean_abs_shap_log": 0.0253
+        },
+        {
+            "feature": "num__vehicle_age",
+            "mean_abs_shap_log": 0.0211
+        },
+        {
+            "feature": "cat__manufacturer_Toyota",
+            "mean_abs_shap_log": 0.0147
+        },
+        {
+            "feature": "cat__manufacturer_Chevrolet",
+            "mean_abs_shap_log": 0.0113
+        },
+        {
+            "feature": "cat__manufacturer_Mercedes-Benz",
+            "mean_abs_shap_log": 0.0095
+        }
+    ]
+}
