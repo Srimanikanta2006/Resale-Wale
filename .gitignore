@@ -33,3 +33,9 @@ desktop.ini
 # Antigravity agent temp / scratch
 *.log
 
+# Documents and PDF reports
+*.pdf
+*report*.pdf
+RMIPR*
+
+

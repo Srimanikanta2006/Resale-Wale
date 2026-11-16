@@ -159,12 +159,6 @@ python src/train.py
 - `reports/slice_analysis_*.csv`
 - `models/car_valuation_pipeline.joblib`
 
-### Generate 53-Page Academic Research Report PDF
-```bash
-python src/generate_rmipr_report_pdf.py
-```
-*Output PDF:* `RMIPR_REPORT_FINAL_RESALE_WALE.pdf` (53 pages, A4 format, Ramaiah Institute of Technology RMIPR 24AL58 format).
-
 ---
 
 ## 📜 6. Repository Structure
@@ -182,8 +176,7 @@ python src/generate_rmipr_report_pdf.py
 │   ├── api_server.py                 # FastAPI microservice
 │   ├── feature_engineering.py        # Domain transformers & preprocessor
 │   ├── predict.py                    # Valuation engine & TreeSHAP attributions
-│   ├── train.py                      # Monotonic training & governance pipeline
-│   └── generate_rmipr_report_pdf.py  # 53-page RMIPR PDF report generator
+│   └── train.py                      # Monotonic training & governance pipeline
 ├── static/
 │   └── index.html                    # Responsive web terminal (8 inputs, SHAP, comps)
 ├── tests/
