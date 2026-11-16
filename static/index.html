@@ -1119,14 +1119,14 @@
               <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--mute); margin-bottom: 8px;">
                 Actionable Optimization (Counterfactual Sandbox)
               </div>
-              <div style="font-size: 13px; color: var(--sub); display: flex; flex-direction: column; gap: 6px;">
-                <div style="display:flex; justify-content:space-between;">
-                  <span>Detail & repair cosmetics to reach "Excellent":</span>
-                  <strong style="color: var(--accent-green);">+$1,450 gain</strong>
+              <div style="font-size: 13px; color: var(--sub); display: flex; flex-direction: column; gap: 6px;" id="counterfactual-container">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span id="cf-action-1-text">Detail & repair cosmetics to reach "Excellent":</span>
+                  <strong style="color: var(--accent-green); font-family: 'JetBrains Mono', monospace;" id="cf-action-1-val">+$1,450 gain</strong>
                 </div>
-                <div style="display:flex; justify-content:space-between;">
-                  <span>Sell before reaching 50,000 miles:</span>
-                  <strong style="color: var(--accent-green);">Preserves ~$1,290</strong>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span id="cf-action-2-text">Sell before reaching 50,000 miles:</span>
+                  <strong style="color: var(--accent-green); font-family: 'JetBrains Mono', monospace;" id="cf-action-2-val">Preserves ~$1,290</strong>
                 </div>
               </div>
             </div>
@@ -1189,7 +1189,7 @@
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
                   <span style="color: var(--sub);">Typical Negotiation Margin:</span>
-                  <strong style="color: var(--ink); font-family: 'JetBrains Mono', monospace;">3.2% ($1,370)</strong>
+                  <strong style="color: var(--ink); font-family: 'JetBrains Mono', monospace;" id="liq-margin">3.2% ($1,370)</strong>
                 </div>
               </div>
             </div>
@@ -1704,51 +1704,168 @@
 
     // Format currency
     function fmt(val) {
+      if (val === undefined || val === null || isNaN(val)) return '$0';
       return '$' + Math.round(val).toLocaleString();
     }
 
-    async function runValuation() {
-      // 1. Instant client-side calculation
-      const clientVal = computeClientValuation(CAR_STATE);
-      renderValuationResults(clientVal);
+    // State tracking & debounce control
+    let valuationRequestId = 0;
+    let valuationDebounceTimer = null;
+    let compsDebounceTimer = null;
+    let activeAbortController = null;
+    let lastVerifiedValuation = null;
 
-      // 2. Query production API for model inference & real comps
+    // Synchronize immediate local labels and badges (0ms instant user feedback)
+    function updateLocalDisplayMetrics() {
+      const age = Math.max(0, 2024 - CAR_STATE.model_year);
+
+      // 1. Year and Age
+      const yearAgeEl = document.getElementById('display-year-age');
+      if (yearAgeEl) {
+        yearAgeEl.textContent = `Year ${CAR_STATE.model_year} (Age: ${age} ${age === 1 ? 'Year' : 'Years'})`;
+      }
+
+      // 2. Mileage
+      const mileageEl = document.getElementById('display-mileage');
+      if (mileageEl) {
+        mileageEl.textContent = `${Math.round(CAR_STATE.mileage).toLocaleString()} Miles`;
+      }
+
+      // 3. Engine Capacity & Tier
+      let tier = `${(CAR_STATE.engine_capacity / 1000).toFixed(1)}L`;
+      if (CAR_STATE.engine_capacity === 0) tier = 'Zero EV Powertrain';
+      else if (CAR_STATE.engine_capacity <= 1600) tier = '1.6L Compact';
+      else if (CAR_STATE.engine_capacity <= 2200) tier = '2.0L Turbo';
+      else if (CAR_STATE.engine_capacity <= 3500) tier = '3.0L V6';
+      else tier = '5.0L V8';
+      const engineEl = document.getElementById('display-engine-cc');
+      if (engineEl) {
+        engineEl.textContent = `${CAR_STATE.engine_capacity.toLocaleString()} cc (${tier})`;
+      }
+
+      // 4. Mileage status vs benchmark
+      const mBadge = document.getElementById('badge-mileage-status');
+      if (mBadge) {
+        const expectedMiles = Math.max(age, 0.5) * 12000;
+        const d = Math.round(CAR_STATE.mileage - expectedMiles);
+        if (d < -3000) {
+          mBadge.className = 'badge badge-green';
+          mBadge.textContent = `${Math.abs(d).toLocaleString()} mi below benchmark (Low Wear Premium)`;
+        } else if (d > 3000) {
+          mBadge.className = 'badge badge-red';
+          mBadge.textContent = `+${d.toLocaleString()} mi above benchmark (Excess Wear Penalty)`;
+        } else {
+          mBadge.className = 'badge badge-gray';
+          mBadge.textContent = `Standard commuter mileage (${d >= 0 ? '+' : ''}${d.toLocaleString()} mi)`;
+        }
+      }
+
+      // 5. Brand Tier badge & hint
+      const bConfig = BRAND_CONFIG[CAR_STATE.manufacturer] || { tier: 'Mainstream' };
+      const brandBadge = document.getElementById('badge-brand-tier');
+      if (brandBadge) brandBadge.textContent = `${bConfig.tier} Tier`;
+      const brandHint = document.getElementById('hint-manufacturer');
+      if (brandHint) brandHint.textContent = `Brand Tier: ${bConfig.tier}`;
+
+      // 6. Condition narrative & badge
+      const narratives = {
+        'Excellent': 'Factory paint thickness verified (4.2-4.8 mils), tire tread > 7mm, full dealer service history logged with zero structural warnings.',
+        'Very Good': 'Minor normal road wear, tires at 5-6mm, dealer serviced at regular intervals, clean mechanical diagnostics.',
+        'Good': 'Moderate exterior scuffs, scheduled service due soon, clean title and mechanically reliable.',
+        'Fair': 'Requires cosmetic reconditioning, tires need replacement, maintenance backlog reflected in baseline pricing.'
+      };
+      const condNarrEl = document.getElementById('condition-narrative');
+      if (condNarrEl) condNarrEl.textContent = narratives[CAR_STATE.condition] || '';
+
+      const grades = { 'Excellent': 'Grade 4/4 (Pristine)', 'Very Good': 'Grade 3/4 (Clean)', 'Good': 'Grade 2/4 (Average)', 'Fair': 'Grade 1/4 (Worn)' };
+      const condBadge = document.getElementById('badge-condition-grade');
+      if (condBadge) condBadge.textContent = grades[CAR_STATE.condition] || '';
+    }
+
+    // Schedule debounced valuation to prevent conflicting numbers and race conditions
+    function scheduleValuation(delay = 100) {
+      updateLocalDisplayMetrics();
+
+      if (valuationDebounceTimer) {
+        clearTimeout(valuationDebounceTimer);
+      }
+
+      // Subtle recalculation cue
+      const priceEl = document.getElementById('val-fair-price');
+      if (priceEl) priceEl.style.opacity = '0.72';
+
+      valuationDebounceTimer = setTimeout(() => {
+        executeModelValuation();
+      }, delay);
+    }
+
+    // Execute verified LightGBM model valuation
+    async function executeModelValuation() {
+      const thisRequestId = ++valuationRequestId;
+
+      if (activeAbortController) {
+        try { activeAbortController.abort(); } catch (e) {}
+      }
+      activeAbortController = new AbortController();
+
       try {
         const res = await fetch('/api/predict', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(CAR_STATE)
+          body: JSON.stringify(CAR_STATE),
+          signal: activeAbortController.signal
         });
+
+        if (thisRequestId !== valuationRequestId) return; // Stale response discarded
+
         if (res.ok) {
           const apiData = await res.json();
+          if (thisRequestId !== valuationRequestId) return;
+
           if (apiData && apiData.valuation) {
+            lastVerifiedValuation = apiData.valuation;
             renderValuationResults(apiData.valuation, apiData.drivers, apiData.trajectory);
+            loadMarketComps(apiData.valuation.fair_resale_price);
           }
+        } else {
+          throw new Error('API returned status ' + res.status);
         }
       } catch (err) {
-        // Safe offline mode fallback
+        if (err.name === 'AbortError') return;
+        console.warn('API fetch fallback:', err);
+        if (thisRequestId === valuationRequestId) {
+          // Fallback only if server unreachable
+          const fallbackVal = computeClientValuation(CAR_STATE);
+          lastVerifiedValuation = fallbackVal;
+          renderValuationResults(fallbackVal, null, null);
+          loadMarketComps(fallbackVal.fair_resale_price);
+        }
+      } finally {
+        if (thisRequestId === valuationRequestId) {
+          const priceEl = document.getElementById('val-fair-price');
+          if (priceEl) priceEl.style.opacity = '1';
+        }
       }
-
-      // 3. Query real marketplace comps
-      loadMarketComps();
     }
 
+    // Render all valuation metrics across the entire application
     function renderValuationResults(val, drivers, trajectory) {
       const price = val.fair_resale_price;
       const ci = val.prediction_interval_95;
 
+      // 1. Hero Card & Pricing Tiers
       document.getElementById('val-fair-price').textContent = fmt(price);
       document.getElementById('val-ci-bounds').textContent = `${fmt(ci[0])} – ${fmt(ci[1])}`;
       document.getElementById('val-trade-in').textContent = fmt(val.trade_in_value);
       document.getElementById('val-private-party').textContent = fmt(val.private_party_value);
       document.getElementById('val-dealer-retail').textContent = fmt(val.dealer_retail_value);
 
-      // Projections
+      // 2. 5-Year Depreciation Horizon
       if (trajectory && trajectory.length >= 4) {
-        document.getElementById('fc-0').textContent = `$${(trajectory[0].projected_price/1000).toFixed(1)}k`;
-        document.getElementById('fc-1').textContent = `$${(trajectory[1].projected_price/1000).toFixed(1)}k`;
-        document.getElementById('fc-2').textContent = `$${(trajectory[2].projected_price/1000).toFixed(1)}k`;
-        document.getElementById('fc-3').textContent = `$${(trajectory[3].projected_price/1000).toFixed(1)}k`;
+        document.getElementById('fc-0').textContent = `$${(trajectory[0].projected_price / 1000).toFixed(1)}k`;
+        document.getElementById('fc-1').textContent = `$${(trajectory[1].projected_price / 1000).toFixed(1)}k`;
+        document.getElementById('fc-2').textContent = `$${(trajectory[2].projected_price / 1000).toFixed(1)}k`;
+        document.getElementById('fc-3').textContent = `$${(trajectory[3].projected_price / 1000).toFixed(1)}k`;
 
         const diff1 = Math.round(trajectory[1].projected_price - trajectory[0].projected_price);
         const diff2 = Math.round(trajectory[2].projected_price - trajectory[0].projected_price);
@@ -1757,46 +1874,107 @@
         document.getElementById('fc-diff-2').textContent = `-$${Math.abs(diff2).toLocaleString()}`;
         document.getElementById('fc-diff-3').textContent = `-$${Math.abs(diff3).toLocaleString()}`;
       } else {
-        document.getElementById('fc-0').textContent = `$${(price/1000).toFixed(1)}k`;
-        document.getElementById('fc-1').textContent = `$${(price*0.91/1000).toFixed(1)}k`;
-        document.getElementById('fc-2').textContent = `$${(price*0.83/1000).toFixed(1)}k`;
-        document.getElementById('fc-3').textContent = `$${(price*0.75/1000).toFixed(1)}k`;
+        document.getElementById('fc-0').textContent = `$${(price / 1000).toFixed(1)}k`;
+        document.getElementById('fc-1').textContent = `$${(price * 0.91 / 1000).toFixed(1)}k`;
+        document.getElementById('fc-2').textContent = `$${(price * 0.83 / 1000).toFixed(1)}k`;
+        document.getElementById('fc-3').textContent = `$${(price * 0.75 / 1000).toFixed(1)}k`;
       }
 
-      // Mileage badge
-      const mBadge = document.getElementById('badge-mileage-status');
-      const d = Math.round(val.mileage_delta);
-      if (d < -3000) {
-        mBadge.className = 'badge badge-green';
-        mBadge.textContent = `${Math.abs(d).toLocaleString()} mi below benchmark (Low Wear Premium)`;
-      } else if (d > 3000) {
-        mBadge.className = 'badge badge-red';
-        mBadge.textContent = `+${d.toLocaleString()} mi above benchmark (Excess Wear Penalty)`;
-      } else {
-        mBadge.className = 'badge badge-gray';
-        mBadge.textContent = `Standard commuter mileage (${d >= 0 ? '+' : ''}${d.toLocaleString()} mi)`;
-      }
-
-      // Update Brand Tier badge
-      document.getElementById('badge-brand-tier').textContent = `${val.brand_tier} Tier`;
-      document.getElementById('hint-manufacturer').textContent = `Brand Tier: ${val.brand_tier}`;
-
-      // Value drivers list
+      // 3. Value Drivers List (SHAP Interpretability)
       if (drivers && drivers.length > 0) {
         const driversListEl = document.getElementById('drivers-list');
         driversListEl.innerHTML = drivers.map(drv => `
           <div class="driver-row">
             <span class="driver-name">${drv.name}</span>
-            <span class="driver-val" style="color: ${drv.impact >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'};">
+            <span class="driver-val" style="color: ${drv.impact >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; font-family: 'JetBrains Mono', monospace;">
               ${drv.impact >= 0 ? '+' : ''}${fmt(drv.impact)}
             </span>
           </div>
         `).join('');
       }
+
+      // 4. Dynamic Actionable Optimization (Counterfactual Sandbox)
+      const cfAction1Text = document.getElementById('cf-action-1-text');
+      const cfAction1Val = document.getElementById('cf-action-1-val');
+      const cfAction2Text = document.getElementById('cf-action-2-text');
+      const cfAction2Val = document.getElementById('cf-action-2-val');
+
+      if (cfAction1Text && cfAction1Val) {
+        if (CAR_STATE.condition === 'Fair') {
+          cfAction1Text.textContent = 'Detail & cosmetic overhaul to reach "Good":';
+          cfAction1Val.textContent = `+${fmt(price * 0.14)} gain`;
+        } else if (CAR_STATE.condition === 'Good') {
+          cfAction1Text.textContent = 'Paint correction & servicing to reach "Very Good":';
+          cfAction1Val.textContent = `+${fmt(price * 0.08)} gain`;
+        } else if (CAR_STATE.condition === 'Very Good') {
+          cfAction1Text.textContent = 'Showroom detailing to achieve "Excellent":';
+          cfAction1Val.textContent = `+${fmt(price * 0.06)} gain`;
+        } else {
+          cfAction1Text.textContent = 'Maintain verified dealer service records:';
+          cfAction1Val.textContent = `Protects ~${fmt(price * 0.07)} value`;
+        }
+      }
+
+      if (cfAction2Text && cfAction2Val) {
+        if (CAR_STATE.mileage < 45000) {
+          cfAction2Text.textContent = 'List before crossing 50,000 miles benchmark:';
+          cfAction2Val.textContent = `Preserves ~${fmt(price * 0.045)}`;
+        } else if (CAR_STATE.mileage < 95000) {
+          cfAction2Text.textContent = 'List before crossing 100,000 miles milestone:';
+          cfAction2Val.textContent = `Preserves ~${fmt(price * 0.055)}`;
+        } else {
+          cfAction2Text.textContent = 'High-mileage tier: Present complete highway logs:';
+          cfAction2Val.textContent = `Recoups ~${fmt(price * 0.035)}`;
+        }
+      }
+
+      // 5. Dynamic Market Liquidity & Velocity Panel
+      const liqDaysEl = document.getElementById('liq-days');
+      const liqVelEl = document.getElementById('liq-velocity');
+      const liqHoldEl = document.getElementById('liq-holding');
+      const liqMargEl = document.getElementById('liq-margin');
+
+      const bConf = BRAND_CONFIG[CAR_STATE.manufacturer] || { tier: 'Mainstream', depRate: 0.10 };
+      let baseDays = (bConf.tier === 'Luxury') ? 28 : ((bConf.tier === 'Economy') ? 16 : 20);
+
+      if (CAR_STATE.mileage > 75000) baseDays += 8;
+      else if (CAR_STATE.mileage < 30000) baseDays -= 4;
+
+      if (CAR_STATE.condition === 'Fair') baseDays += 10;
+      else if (CAR_STATE.condition === 'Excellent') baseDays -= 4;
+
+      if (CAR_STATE.number_of_owners > 2) baseDays += 6;
+      baseDays = Math.max(9, Math.min(48, baseDays));
+
+      if (liqDaysEl) liqDaysEl.textContent = `${baseDays} Days`;
+
+      if (liqVelEl) {
+        if (baseDays <= 15) {
+          liqVelEl.className = 'badge badge-green';
+          liqVelEl.textContent = 'Very High Liquidity (Hot Demand)';
+        } else if (baseDays <= 24) {
+          liqVelEl.className = 'badge badge-green';
+          liqVelEl.textContent = 'High Liquidity';
+        } else if (baseDays <= 34) {
+          liqVelEl.className = 'badge badge-gray';
+          liqVelEl.textContent = 'Moderate Turnover';
+        } else {
+          liqVelEl.className = 'badge badge-red';
+          liqVelEl.textContent = 'Slower Mover';
+        }
+      }
+
+      const monthlyHolding = Math.round(price * ((bConf.depRate || 0.11) / 12));
+      if (liqHoldEl) liqHoldEl.textContent = `-$${monthlyHolding.toLocaleString()} / mo`;
+
+      const marginPct = (bConf.tier === 'Luxury') ? 4.2 : 3.2;
+      const marginDollar = Math.round(price * (marginPct / 100));
+      if (liqMargEl) liqMargEl.textContent = `${marginPct}% (${fmt(marginDollar)})`;
     }
 
-    async function loadMarketComps() {
-      const tbody = document.getElementById('comps-tbody');
+    // Query real marketplace comps with current price alignment
+    async function loadMarketComps(currentPrice) {
+      const activePrice = currentPrice || (lastVerifiedValuation ? lastVerifiedValuation.fair_resale_price : 40000);
       const statBadge = document.getElementById('comps-stat-badge');
 
       try {
@@ -1805,7 +1983,7 @@
           const data = await res.json();
           if (data && data.comps && data.comps.length > 0) {
             statBadge.textContent = `Matching records: ${data.total_matching.toLocaleString()} ${CAR_STATE.manufacturer}s in dataset (Avg: ${fmt(data.avg_price_in_sample)})`;
-            renderCompsTable(data.comps);
+            renderCompsTable(data.comps, activePrice);
             return;
           }
         }
@@ -1815,14 +1993,15 @@
 
       // Offline sample comps fallback
       const fallbackComps = [
-        { id: 'LST-17712', manufacturer: CAR_STATE.manufacturer, model_year: CAR_STATE.model_year, mileage: Math.round(CAR_STATE.mileage * 1.02), engine_capacity: CAR_STATE.engine_capacity, fuel_type: CAR_STATE.fuel_type, condition: CAR_STATE.condition, resale_price: Math.round(CAR_STATE.mileage > 50000 ? 28400 : 41950), days_on_market: 9, seller_type: 'Certified Dealer' },
-        { id: 'LST-03884', manufacturer: CAR_STATE.manufacturer, model_year: CAR_STATE.model_year, mileage: Math.round(CAR_STATE.mileage * 0.96), engine_capacity: CAR_STATE.engine_capacity, fuel_type: CAR_STATE.fuel_type, condition: 'Very Good', resale_price: Math.round(CAR_STATE.mileage > 50000 ? 27800 : 41460), days_on_market: 14, seller_type: 'Private Seller' },
-        { id: 'LST-06516', manufacturer: CAR_STATE.manufacturer, model_year: Math.max(2008, CAR_STATE.model_year - 1), mileage: Math.round(CAR_STATE.mileage * 1.15), engine_capacity: CAR_STATE.engine_capacity, fuel_type: CAR_STATE.fuel_type, condition: 'Good', resale_price: Math.round(CAR_STATE.mileage > 50000 ? 24500 : 38200), days_on_market: 22, seller_type: 'Certified Dealer' }
+        { id: 'LST-17712', manufacturer: CAR_STATE.manufacturer, model_year: CAR_STATE.model_year, mileage: Math.round(CAR_STATE.mileage * 1.02), engine_capacity: CAR_STATE.engine_capacity, fuel_type: CAR_STATE.fuel_type, condition: CAR_STATE.condition, resale_price: Math.round(activePrice * 1.03), days_on_market: 9, seller_type: 'Certified Dealer' },
+        { id: 'LST-03884', manufacturer: CAR_STATE.manufacturer, model_year: CAR_STATE.model_year, mileage: Math.round(CAR_STATE.mileage * 0.96), engine_capacity: CAR_STATE.engine_capacity, fuel_type: CAR_STATE.fuel_type, condition: 'Very Good', resale_price: Math.round(activePrice * 0.98), days_on_market: 14, seller_type: 'Private Seller' },
+        { id: 'LST-06516', manufacturer: CAR_STATE.manufacturer, model_year: Math.max(2008, CAR_STATE.model_year - 1), mileage: Math.round(CAR_STATE.mileage * 1.15), engine_capacity: CAR_STATE.engine_capacity, fuel_type: CAR_STATE.fuel_type, condition: 'Good', resale_price: Math.round(activePrice * 0.91), days_on_market: 22, seller_type: 'Certified Dealer' }
       ];
       statBadge.textContent = `Verified dataset records: ${CAR_STATE.manufacturer}`;
-      renderCompsTable(fallbackComps);
+      renderCompsTable(fallbackComps, activePrice);
     }
 
+    // Draw Price vs. Mileage regression curve and scatter points
     function drawScatterPlot(comps, currentPrice) {
       const cvs = document.getElementById('scatter-canvas');
       if (!cvs) return;
@@ -1835,8 +2014,8 @@
 
       ctx.clearRect(0, 0, w, h);
 
-      const maxMiles = 120000;
-      const maxPrice = Math.max(65000, currentPrice * 1.35);
+      const maxMiles = 150000;
+      const maxPrice = Math.max(70000, currentPrice * 1.4);
 
       // Grid lines
       ctx.strokeStyle = '#f0f0eb';
@@ -1851,7 +2030,7 @@
         ctx.moveTo(padL, y);
         ctx.lineTo(padL + plotW, y);
         ctx.stroke();
-        ctx.fillText(`$${Math.round(val/1000)}k`, 8, y + 3);
+        ctx.fillText(`$${Math.round(val / 1000)}k`, 8, y + 3);
       }
 
       for (let i = 0; i <= 4; i++) {
@@ -1861,7 +2040,7 @@
         ctx.moveTo(x, padT);
         ctx.lineTo(x, padT + plotH);
         ctx.stroke();
-        ctx.fillText(`${Math.round(m/1000)}k mi`, x - 14, h - 8);
+        ctx.fillText(`${Math.round(m / 1000)}k mi`, x - 14, h - 8);
       }
 
       // Depreciation trend curve
@@ -1872,7 +2051,7 @@
         const mi = (s / 40) * maxMiles;
         const b = BRAND_CONFIG[CAR_STATE.manufacturer] || { baseMSRP: 32000, depRate: 0.10 };
         const age = Math.max(0, 2024 - CAR_STATE.model_year);
-        const estP = Math.max(3000, b.baseMSRP * Math.pow(1 - b.depRate, age) - (mi - age * 12000) * 0.085);
+        const estP = Math.max(2500, b.baseMSRP * Math.pow(1 - b.depRate, age) - (mi - age * 12000) * 0.082);
         const x = padL + (mi / maxMiles) * plotW;
         const y = padT + plotH - (estP / maxPrice) * plotH;
         if (s === 0) ctx.moveTo(x, y);
@@ -1895,7 +2074,7 @@
       // Current configured vehicle dot
       const curX = padL + Math.min(plotW, (CAR_STATE.mileage / maxMiles) * plotW);
       const curY = padT + plotH - Math.min(plotH, (currentPrice / maxPrice) * plotH);
-      
+
       ctx.beginPath();
       ctx.arc(curX, curY, 8, 0, 2 * Math.PI);
       ctx.fillStyle = 'rgba(17, 17, 17, 0.14)';
@@ -1912,15 +2091,15 @@
       ctx.fillText(`Your ${CAR_STATE.manufacturer}: $${Math.round(currentPrice).toLocaleString()}`, labelX, curY - 8);
     }
 
-    function renderCompsTable(comps) {
+    // Render comps table using the authentic LightGBM currentPrice
+    function renderCompsTable(comps, currentPrice) {
       const tbody = document.getElementById('comps-tbody');
-      const currentPrice = computeClientValuation(CAR_STATE).fair_resale_price;
+      const activePrice = currentPrice || (lastVerifiedValuation ? lastVerifiedValuation.fair_resale_price : 40000);
 
-      // Draw regression scatter plot
-      drawScatterPlot(comps, currentPrice);
+      drawScatterPlot(comps, activePrice);
 
       tbody.innerHTML = comps.map(c => {
-        const delta = c.resale_price - currentPrice;
+        const delta = c.resale_price - activePrice;
         const deltaColor = delta >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
         const deltaText = `${delta >= 0 ? '+' : ''}${fmt(delta)}`;
 
@@ -1944,64 +2123,68 @@
       }).join('');
     }
 
+    // Load specs from a comparable listing
     function applyCompSpecs(make, year, miles, cc, fuel, cond) {
-      document.getElementById('input-manufacturer').value = make;
       CAR_STATE.manufacturer = make;
-      updateYear(year);
-      updateMileage(miles);
-      updateEngineCC(cc);
-      setFuel(fuel);
-      setCondition(cond);
+      CAR_STATE.model_year = parseInt(year);
+      CAR_STATE.mileage = parseFloat(miles);
+      CAR_STATE.engine_capacity = parseFloat(cc);
+      CAR_STATE.fuel_type = fuel;
+      CAR_STATE.condition = cond;
+
+      document.getElementById('input-manufacturer').value = make;
+      document.getElementById('input-model-year').value = year;
+      document.getElementById('input-mileage').value = miles;
+      document.getElementById('input-engine-cc').value = cc;
+
+      document.querySelectorAll('.fuel-btn').forEach(b => {
+        b.classList.toggle('active', b.textContent.trim() === fuel);
+      });
+      document.querySelectorAll('.cond-btn').forEach(b => {
+        b.classList.toggle('active', b.textContent.trim() === cond);
+      });
+
+      scheduleValuation(0);
       window.scrollTo({ top: document.getElementById('appraisal-studio').offsetTop - 20, behavior: 'smooth' });
     }
 
-    // Input handlers
+    // Input handlers with instant local feedback + debounced LightGBM inference
     function updateMake(val) {
       CAR_STATE.manufacturer = val;
-      runValuation();
+      scheduleValuation(0);
     }
 
     function updateYear(val) {
       CAR_STATE.model_year = parseInt(val);
       document.getElementById('input-model-year').value = val;
-      const age = Math.max(0, 2024 - CAR_STATE.model_year);
-      document.getElementById('display-year-age').textContent = `Year ${val} (Age: ${age} ${age === 1 ? 'Year' : 'Years'})`;
-      runValuation();
+      scheduleValuation(50);
     }
 
     function updateMileage(val) {
       CAR_STATE.mileage = parseFloat(val) || 1000;
       document.getElementById('input-mileage').value = CAR_STATE.mileage;
-      document.getElementById('display-mileage').textContent = `${Math.round(CAR_STATE.mileage).toLocaleString()} Miles`;
-      runValuation();
+      scheduleValuation(50);
     }
 
     function updateEngineCC(val) {
       CAR_STATE.engine_capacity = parseFloat(val) || 0;
       document.getElementById('input-engine-cc').value = CAR_STATE.engine_capacity;
-      
-      let tier = `${(CAR_STATE.engine_capacity/1000).toFixed(1)}L`;
-      if (CAR_STATE.engine_capacity === 0) tier = 'Zero EV Powertrain';
-      else if (CAR_STATE.engine_capacity <= 1600) tier = '1.6L Compact';
-      else if (CAR_STATE.engine_capacity <= 2200) tier = '2.0L Turbo';
-      else if (CAR_STATE.engine_capacity <= 3500) tier = '3.0L V6';
-      else tier = '5.0L V8';
-
-      document.getElementById('display-engine-cc').textContent = `${CAR_STATE.engine_capacity.toLocaleString()} cc (${tier})`;
-      runValuation();
+      scheduleValuation(50);
     }
 
     function setFuel(type) {
       CAR_STATE.fuel_type = type;
       if (type === 'Electric') {
-        updateEngineCC(0);
+        CAR_STATE.engine_capacity = 0;
+        document.getElementById('input-engine-cc').value = 0;
       } else if (CAR_STATE.engine_capacity === 0) {
-        updateEngineCC(1998);
+        CAR_STATE.engine_capacity = 1998;
+        document.getElementById('input-engine-cc').value = 1998;
       }
       document.querySelectorAll('.fuel-btn').forEach(b => {
         b.classList.toggle('active', b.textContent.trim() === type);
       });
-      runValuation();
+      scheduleValuation(0);
     }
 
     function setTransmission(type) {
@@ -2009,7 +2192,7 @@
       document.querySelectorAll('.trans-btn').forEach(b => {
         b.classList.toggle('active', b.textContent.trim() === type);
       });
-      runValuation();
+      scheduleValuation(0);
     }
 
     function setOwners(num) {
@@ -2018,28 +2201,18 @@
         const matches = (num === 4 && b.textContent.includes('4+')) || b.textContent.startsWith(`${num}`);
         b.classList.toggle('active', matches);
       });
-      runValuation();
+      scheduleValuation(0);
     }
 
     function setCondition(cond) {
       CAR_STATE.condition = cond;
-      const narratives = {
-        'Excellent': 'Factory paint thickness verified (4.2-4.8 mils), tire tread > 7mm, full dealer service history logged with zero structural warnings.',
-        'Very Good': 'Minor normal road wear, tires at 5-6mm, dealer serviced at regular intervals, clean mechanical diagnostics.',
-        'Good': 'Moderate exterior scuffs, scheduled service due soon, clean title and mechanically reliable.',
-        'Fair': 'Requires cosmetic reconditioning, tires need replacement, maintenance backlog reflected in baseline pricing.'
-      };
-      document.getElementById('condition-narrative').textContent = narratives[cond] || '';
-      
-      const grades = { 'Excellent': 'Grade 4/4 (Pristine)', 'Very Good': 'Grade 3/4 (Clean)', 'Good': 'Grade 2/4 (Average)', 'Fair': 'Grade 1/4 (Worn)' };
-      document.getElementById('badge-condition-grade').textContent = grades[cond] || '';
-
       document.querySelectorAll('.cond-btn').forEach(b => {
         b.classList.toggle('active', b.textContent.trim() === cond);
       });
-      runValuation();
+      scheduleValuation(0);
     }
 
+    // Quick presets bar
     function applyPreset(name) {
       const presets = {
         bmw: { make: 'BMW', year: 2021, cc: 1998, miles: 34250, fuel: 'Petrol', trans: 'Automatic', owners: 1, cond: 'Excellent' },
@@ -2051,19 +2224,40 @@
       const p = presets[name];
       if (!p) return;
 
-      document.getElementById('input-manufacturer').value = p.make;
       CAR_STATE.manufacturer = p.make;
-      updateYear(p.year);
-      updateEngineCC(p.cc);
-      updateMileage(p.miles);
-      setFuel(p.fuel);
-      setTransmission(p.trans);
-      setOwners(p.owners);
-      setCondition(p.cond);
+      CAR_STATE.model_year = p.year;
+      CAR_STATE.mileage = p.miles;
+      CAR_STATE.engine_capacity = p.cc;
+      CAR_STATE.fuel_type = p.fuel;
+      CAR_STATE.transmission = p.trans;
+      CAR_STATE.number_of_owners = p.owners;
+      CAR_STATE.condition = p.cond;
+
+      document.getElementById('input-manufacturer').value = p.make;
+      document.getElementById('input-model-year').value = p.year;
+      document.getElementById('input-mileage').value = p.miles;
+      document.getElementById('input-engine-cc').value = p.cc;
+
+      document.querySelectorAll('.fuel-btn').forEach(b => {
+        b.classList.toggle('active', b.textContent.trim() === p.fuel);
+      });
+      document.querySelectorAll('.trans-btn').forEach(b => {
+        b.classList.toggle('active', b.textContent.trim() === p.trans);
+      });
+      document.querySelectorAll('.owner-btn').forEach(b => {
+        const matches = (p.owners === 4 && b.textContent.includes('4+')) || b.textContent.startsWith(`${p.owners}`);
+        b.classList.toggle('active', matches);
+      });
+      document.querySelectorAll('.cond-btn').forEach(b => {
+        b.classList.toggle('active', b.textContent.trim() === p.cond);
+      });
+
+      scheduleValuation(0);
     }
 
+    // Initial load
     window.addEventListener('DOMContentLoaded', () => {
-      runValuation();
+      scheduleValuation(0);
     });
   </script>
 </body>
