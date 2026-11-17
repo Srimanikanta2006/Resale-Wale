@@ -33,7 +33,7 @@ def engine():
     return CarValuationEngine()
 
 def test_feature_engineering_columns():
-    fe = AutomotiveFeatureEngineer(current_year=2024)
+    fe = AutomotiveFeatureEngineer(current_year=2026)
     df_raw = pd.DataFrame([{
         'manufacturer': 'Toyota',
         'model_year': 2018,
@@ -53,8 +53,8 @@ def test_feature_engineering_columns():
     for col in expected_cols:
         assert col in df_out.columns, f"Missing engineered column {col}"
     
-    assert df_out['vehicle_age'].iloc[0] == 6
-    assert df_out['annual_mileage'].iloc[0] == 10000.0
+    assert df_out['vehicle_age'].iloc[0] == 8
+    assert df_out['annual_mileage'].iloc[0] == 7500.0
     assert df_out['brand_tier'].iloc[0] == 'Mainstream'
     assert df_out['engine_tier'].iloc[0] == 'Large_V6'
 
@@ -166,3 +166,18 @@ def test_non_negative_price_guarantee(engine):
     assert res['fair_resale_price'] >= 1800.0
     low, high = res['prediction_interval_95']
     assert low >= 1800.0 and high >= 1800.0
+
+def test_selling_window_counterfactuals(engine):
+    """
+    Sanity test: Optimal selling window counterfactuals project non-increasing resale values.
+    """
+    res = engine.predict_car_value(
+        manufacturer='BMW', model_year=2022, mileage=30000, engine_capacity=1998,
+        fuel_type='Petrol', transmission='Automatic', number_of_owners=1, condition='Excellent'
+    )
+    sw = res['selling_window']
+    assert 'sell_now' in sw and 'in_6_months' in sw and 'in_12_months' in sw
+    p_now = sw['sell_now']['projected_price']
+    p_6m = sw['in_6_months']['projected_price']
+    p_12m = sw['in_12_months']['projected_price']
+    assert p_now >= p_6m >= p_12m, f"Selling window violated monotonicity: {p_now} -> {p_6m} -> {p_12m}"

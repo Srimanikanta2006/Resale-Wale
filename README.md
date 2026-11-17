@@ -4,13 +4,13 @@
 
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://python.org)
 [![LightGBM](https://img.shields.io/badge/Model-Monotonic_LightGBM-brightgreen)](https://lightgbm.readthedocs.io/)
-[![R2 Score](https://img.shields.io/badge/Holdout_R%C2%B2-0.9629-blue)](reports/metrics.json)
-[![MAPE](https://img.shields.io/badge/Holdout_MAPE-8.14%25-success)](reports/metrics.json)
+[![R2 Score](https://img.shields.io/badge/Holdout_R%C2%B2-0.9659-blue)](reports/metrics.json)
+[![MAPE](https://img.shields.io/badge/Holdout_MAPE-8.13%25-success)](reports/metrics.json)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI_REST-009688?logo=fastapi&logoColor=white)](http://localhost:8000)
-[![Pytest](https://img.shields.io/badge/Tests-8%20Passed-brightgreen?logo=pytest)](tests/)
+[![Pytest](https://img.shields.io/badge/Tests-9%20Passed-brightgreen?logo=pytest)](tests/)
 [![Single Source](https://img.shields.io/badge/Truth-reports%2Fmetrics.json-purple)](reports/metrics.json)
 
-**A Clean 8-Feature Automobile Valuation Engine with Monotonic Gradient Boosted Trees, Asymmetric Prediction Intervals, and TreeSHAP Explainability.**
+**A Clean 8-Feature Automobile Valuation Engine with Monotonic Gradient Boosted Trees, Asymmetric Prediction Intervals, TreeSHAP Explainability, and Valuation Certificates.**
 
 [Live Web Interface (Port 8000)](http://localhost:8000) • [API Documentation](http://localhost:8000/docs) • [Unified Metrics](reports/metrics.json)
 
@@ -18,16 +18,16 @@
 
 ---
 
-## 📌 1. Operational Scope & Problem Statement
-Used automobile marketplaces require transparent, data-driven pricing engines to calculate fair resale prices. This system is designed as a **clean 8-input → price tool**, honest about what its 25,000 transaction records can and cannot cover:
+## 📌 1. Operational Scope & Dataset Provenance
+Used automobile marketplaces require transparent, data-driven pricing engines to calculate fair resale prices. This system is designed as a **clean 8-input → price tool**, honest about what its 25,000 benchmark records can and cannot cover:
 
 ### Valid Operational Domain:
 - **10 Manufacturers**: Toyota, Honda, Ford, Chevrolet, Nissan, Hyundai, Volkswagen, Audi, BMW, Mercedes-Benz
-- **Model Years**: 2008 – 2024 (valued as of **2024 calendar market baseline**, unindexed for subsequent macro inflation)
+- **Model Years**: 2008 – 2026 (valued as of **2026 calendar market reference baseline**)
 - **Odometer Range**: 500 – 300,000 miles
 - **8 Core Vehicular Features (strictly respecting the problem statement)**:
   1. `manufacturer` (Make)
-  2. `model_year` (2008–2024)
+  2. `model_year` (2008–2026)
   3. `mileage` (Odometer in miles)
   4. `engine_capacity` (Displacement in cc; strictly 0 cc for Electric vehicles)
   5. `fuel_type` (Petrol, Diesel, Hybrid, Electric)
@@ -36,7 +36,12 @@ Used automobile marketplaces require transparent, data-driven pricing engines to
   8. `condition` (Fair, Good, Very Good, Excellent)
 - **Target**: `resale_price` in USD ($).
 
-*Note on Boundaries:* Specific vehicle trim packages, exterior colors, and regional taxes are omitted because they are not present in the 8-feature problem statement.
+### Dataset Construction & Scientific Integrity:
+The dataset consists of **25,000 controlled records** generated via domain-grounded simulation based on documented automotive depreciation kinetics:
+- **Depreciation Kinetics**: Brand-specific exponential decay curves (slower depreciation for Toyota/Honda, steeper for European luxury brands).
+- **Odometer Normalization**: Modeled around the national benchmark of 12,000 miles/year.
+- **Controlled Noise**: A $\pm 5.5\%$ Gaussian transaction noise is applied. With $\pm 5.5\%$ irreducible noise, the theoretical Bayes minimum error rate (irreducible MAPE) is $\mathbb{E}[|\mathcal{N}(0, 0.055^2)|] \approx 0.055 \times \sqrt{2/\pi} \approx 4.39\%$. The model's holdout test MAPE of **8.13%** demonstrates robust, high-fidelity rule recovery without overfitting.
+- **Scientific Limitation**: The high $R^2$ (0.9659) confirms that the tree ensemble accurately recovers the generator's underlying economic rules rather than live auction noise. Calibration parameters are parametric assumptions, not live external API feeds.
 
 ---
 
@@ -81,7 +86,9 @@ Used automobile marketplaces require transparent, data-driven pricing engines to
    - Older vehicle age never raises price ($\le 0$).
    - More previous owners never raises price ($\le 0$).
    - Superior condition grade never lowers price ($\ge 0$).
-4. **Asymmetric 95% Prediction Intervals**: Derived from validation set empirical residual quantiles in log space ($q_{0.025} = -0.1965$, $q_{0.975} = +0.1848$). Exponentiating to dollar space naturally produces an asymmetric prediction interval reflecting price dispersion, achieving **93.15% coverage** on unseen test data.
+4. **Asymmetric 95% Prediction Intervals**: Derived from validation set empirical residual quantiles in log space ($q_{0.025} = -0.1936$, $q_{0.975} = +0.1764$). Exponentiating to dollar space naturally produces an asymmetric prediction interval reflecting price dispersion, achieving **92.21% coverage** on unseen test data.
+5. **Optimal Selling Window Advisor**: Generates honest model counterfactuals predicting projected value erosion at +6 months (+6,000 mi) and +12 months (+12,000 mi, +1 yr) based on smooth exponential decay without artificial cliff assumptions.
+6. **Valuation Certificate**: Provides a clean, print-ready official certificate with vehicle specs, valuation range, top TreeSHAP drivers, and model verification metadata.
 
 ---
 
@@ -90,19 +97,19 @@ Used automobile marketplaces require transparent, data-driven pricing engines to
 ### Candidate Benchmark Comparison (Trained on 70% Train, Evaluated on 15% Validation)
 | Model Architecture | RMSE ($) | MAE ($) | MAPE (%) | $R^2$ Score | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Naive Baseline (Mean)** | $11,596.61 | $8,560.52 | 75.24% | -0.0000 | Rejected Baseline |
-| **Naive Baseline (Median)** | $11,801.01 | $8,367.50 | 65.22% | -0.0356 | Rejected Baseline |
-| **Ridge Regression (L2)** | $2,811.35 | $1,711.99 | 9.33% | 0.9412 | Linear Baseline |
-| **Random Forest (100 Trees)** | $2,430.94 | $1,567.20 | 8.74% | 0.9561 | Benchmark Candidate |
-| **XGBoost Regressor** | $2,219.99 | $1,438.34 | 7.96% | 0.9634 | Benchmark Candidate |
-| **LightGBM Regressor (Winner)** | **$2,254.93** | **$1,472.60** | **8.19%** | **0.9622** | **Production Winner** |
+| **Naive Baseline (Mean)** | $10,353.36 | $7,601.04 | 81.98% | -0.0001 | Rejected Baseline |
+| **Naive Baseline (Median)** | $10,617.08 | $7,366.67 | 67.80% | -0.0517 | Rejected Baseline |
+| **Ridge Regression (L2)** | $2,576.98 | $1,483.84 | 9.58% | 0.9380 | Linear Baseline |
+| **Random Forest (100 Trees)** | $2,041.39 | $1,294.82 | 8.78% | 0.9611 | Benchmark Candidate |
+| **XGBoost Regressor** | $1,893.87 | $1,193.22 | 7.96% | 0.9665 | Benchmark Candidate |
+| **LightGBM Regressor (Winner)** | **$1,947.33** | **$1,226.74** | **8.21%** | **0.9646** | **Production Winner** |
 
 ### Final Champion Model (Refit on 21,250 records, Evaluated on 3,750 Held-Out Test Set)
-- **Holdout Test MAPE**: **8.14%** (95% Bootstrap CI: **[7.95%, 8.34%]**)
-- **Holdout Test $R^2$ Score**: **0.9629**
-- **Mean Absolute Error (MAE)**: **$1,437.13** (Median AE: **$938.12**)
-- **Root Mean Squared Error (RMSE)**: **$2,167.80**
-- **5-Fold Cross Validation Mean MAPE**: **8.22% ($\pm 0.15\%$)**
+- **Holdout Test MAPE**: **8.13%** (95% Bootstrap CI: **[7.93%, 8.33%]**)
+- **Holdout Test $R^2$ Score**: **0.9659**
+- **Mean Absolute Error (MAE)**: **$1,185.46** (Median AE: **$738.24**)
+- **Root Mean Squared Error (RMSE)**: **$1,854.20**
+- **5-Fold Cross Validation Mean MAPE**: **8.23% ($\pm 0.18\%$)**
 - **Inference Latency**: **14.8 ms** (Real-time REST API)
 
 ---
@@ -112,13 +119,15 @@ Automated pytest tests in `tests/test_pipeline.py` enforce behavioral consistenc
 
 | Sanity Check | Test Condition | Status |
 | :--- | :--- | :---: |
+| **Feature Engineering Columns** | Domain feature transformations (`vehicle_age`, `wear_index`) | **PASSED** |
+| **Inference & Intervals** | Point estimate and asymmetric log-space prediction interval | **PASSED** |
 | **Mileage Monotonicity** | As mileage increases from 15k to 140k mi, price strictly decreases | **PASSED** |
 | **Age Monotonicity** | As model year decreases (age increases), price strictly decreases | **PASSED** |
 | **Owner Monotonicity** | As owner count increases from 1 to 4, price strictly decreases | **PASSED** |
 | **Condition Monotonicity** | Fair < Good < Very Good < Excellent | **PASSED** |
 | **EV Constraints** | Electric fuel type forces 0 cc displacement and Automatic transmission | **PASSED** |
 | **Non-Negative Guarantee** | Even at 320,000 miles, 2008 year, Fair condition, price remains > 0 | **PASSED** |
-| **Prediction Interval** | 95% log-space prediction interval covers point estimate | **PASSED** |
+| **Selling Window Counterfactuals**| Price today $\ge$ Price in 6 months $\ge$ Price in 12 months | **PASSED** |
 
 Run tests anytime:
 ```bash

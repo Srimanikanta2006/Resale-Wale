@@ -1,7 +1,9 @@
 """
-Dataset Generator & Real-World Automotive Benchmark Synthesizer
-Generates a realistic, statistically grounded used car marketplace dataset
-strictly adhering to the required features:
+Controlled Automotive Benchmark Dataset Synthesizer
+Generates a statistically grounded, realistic automotive benchmark dataset
+modeled on documented depreciation kinetics (exponential decay, odometer deviations,
+condition multipliers, ownership penalties, and Gaussian market noise)
+strictly adhering to the required 8 features + target:
 - manufacturer
 - model_year
 - mileage
@@ -11,6 +13,7 @@ strictly adhering to the required features:
 - number_of_owners
 - condition
 - resale_price (Target)
+Reference Anchor Year: 2026 (Model years: 2008–2026)
 """
 
 import numpy as np
@@ -40,16 +43,18 @@ def generate_used_car_dataset(n_samples=25000, random_seed=42):
     
     selected_brands = np.random.choice(brand_list, size=n_samples, p=brand_probs)
 
-    # 2. Model Year (2008 to 2024, current year 2024 reference)
-    CURRENT_YEAR = 2024
-    # Distribution biased towards 3-10 year old cars (typical marketplace sweet spot)
+    # 2. Model Year (2008 to 2026, reference year 2026)
+    CURRENT_YEAR = 2026
+    # Distribution across 19 model years (2008 to 2026 inclusive)
+    # Sweet spot remains 3-10 year old cars, with 2025-2026 as low-mileage late-model/CPO inventory
     year_weights = np.array([
-        0.015, 0.02, 0.025, 0.03, 0.035, 0.045, # 2008-2013
-        0.055, 0.065, 0.075, 0.085, 0.095, 0.11, # 2014-2019
-        0.10, 0.09, 0.08, 0.055, 0.025           # 2020-2024
+        0.015, 0.020, 0.025, 0.030, 0.035, 0.040, # 2008-2013 (older vehicles)
+        0.050, 0.060, 0.070, 0.080, 0.090, 0.100, # 2014-2019 (mid-age inventory)
+        0.095, 0.090, 0.080, 0.065, 0.045,        # 2020-2024 (recent pre-owned)
+        0.025, 0.015                              # 2025-2026 (late model / CPO demo)
     ])
     year_weights /= year_weights.sum()
-    years = np.arange(2008, 2025)
+    years = np.arange(2008, 2027)
     model_years = np.random.choice(years, size=n_samples, p=year_weights)
     vehicle_ages = CURRENT_YEAR - model_years
 

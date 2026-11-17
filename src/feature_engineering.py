@@ -11,7 +11,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler, OrdinalEncoder
 from sklearn.pipeline import Pipeline
 
-CURRENT_YEAR = 2024
+CURRENT_YEAR = 2026
 
 BRAND_TIERS = {
     'Nissan': 'Economy',

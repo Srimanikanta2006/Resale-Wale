@@ -334,7 +334,7 @@ def train_and_evaluate(data_path=os.path.join(root_dir, 'data', 'used_cars_marke
             'training_records': len(X_train_val),
             'test_records': len(X_test),
             'dataset_total': len(df),
-            'reference_year': 2024,
+            'reference_year': 2026,
             'features': feature_cols,
             'target': target_col,
             'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')

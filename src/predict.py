@@ -37,12 +37,12 @@ class CarValuationEngine:
 
         # Log prediction interval quantiles
         pi_cfg = self.metrics.get('final_model', {}).get('prediction_interval_95', {})
-        self.q_lower = pi_cfg.get('q_lower_log', -0.1965)
-        self.q_upper = pi_cfg.get('q_upper_log', 0.1848)
+        self.q_lower = pi_cfg.get('q_lower_log', -0.1936)
+        self.q_upper = pi_cfg.get('q_upper_log', 0.1764)
 
         # Base expected value
-        self.base_log_val = self.metrics.get('final_model', {}).get('base_log_value', 9.5925)
-        self.base_expected_price = self.metrics.get('final_model', {}).get('base_expected_price', 14653.70)
+        self.base_log_val = self.metrics.get('final_model', {}).get('base_log_value', 9.3807)
+        self.base_expected_price = self.metrics.get('final_model', {}).get('base_expected_price', 11856.25)
 
         # Extract inner steps for TreeSHAP
         inner = self.pipeline.regressor_
@@ -92,7 +92,7 @@ class CarValuationEngine:
         if make not in BRAND_TIERS:
             make = 'Toyota'
 
-        year = int(np.clip(int(model_year), 2005, 2025))
+        year = int(np.clip(int(model_year), 2005, 2027))
         miles = float(np.clip(float(mileage), 500, 350000))
         owners = int(np.clip(int(number_of_owners), 1, 4))
         
@@ -102,8 +102,8 @@ class CarValuationEngine:
 
         # Out-of-distribution check
         ood_warnings = []
-        if year < 2008 or year > 2024:
-            ood_warnings.append(f"Model year {year} is outside standard 2008–2024 training window.")
+        if year < 2008 or year > 2026:
+            ood_warnings.append(f"Model year {year} is outside standard 2008–2026 training window.")
         if miles > 250000:
             ood_warnings.append(f"Odometer reading ({miles:,.0f} mi) exceeds 99th percentile of training data.")
         if cc > 5500:
@@ -163,7 +163,7 @@ class CarValuationEngine:
         dealer_retail_value = round(estimated_price * 1.12, 2)
 
         # Compute Age and Expected Miles
-        vehicle_age = max(0, 2024 - clean['model_year'])
+        vehicle_age = max(0, 2026 - clean['model_year'])
         expected_miles = max(vehicle_age, 0.5) * 12000.0
         mileage_delta = clean['mileage'] - expected_miles
 
@@ -282,6 +282,47 @@ class CarValuationEngine:
             'label': f'Impact of driving +12,000 additional miles'
         }
 
+        # 3. Optimal Selling Window (Honest 6-Month and 12-Month Model Counterfactuals)
+        # 6-Month Counterfactual (+6,000 miles, current year)
+        cf_6m_row = row_df.copy()
+        cf_6m_row['mileage'] = clean['mileage'] + 6000.0
+        cf_6m_prep = self.prep_step.transform(self.fe_step.transform(cf_6m_row))
+        cf_6m_price = max(1800.0, round(float(np.expm1(self.reg_step.predict(cf_6m_prep)[0])), 2))
+        loss_6m = max(0.0, round(estimated_price - cf_6m_price, 2))
+
+        # 12-Month Counterfactual (+12,000 miles, age +1 year -> model_year - 1)
+        cf_12m_row = row_df.copy()
+        cf_12m_row['model_year'] = clean['model_year'] - 1
+        cf_12m_row['mileage'] = clean['mileage'] + 12000.0
+        cf_12m_prep = self.prep_step.transform(self.fe_step.transform(cf_12m_row))
+        cf_12m_price = max(1800.0, round(float(np.expm1(self.reg_step.predict(cf_12m_prep)[0])), 2))
+        loss_12m = max(0.0, round(estimated_price - cf_12m_price, 2))
+
+        selling_window = {
+            'sell_now': {
+                'timeline': 'Sell Now (Today)',
+                'projected_price': estimated_price,
+                'depreciation_loss': 0.0,
+                'monthly_rate': 0.0,
+                'recommendation': 'Maximum baseline valuation'
+            },
+            'in_6_months': {
+                'timeline': 'Sell in 6 Months (+6,000 mi)',
+                'projected_price': cf_6m_price,
+                'depreciation_loss': loss_6m,
+                'monthly_rate': round(loss_6m / 6.0, 2),
+                'recommendation': f'Projected loss of -${loss_6m:,.0f} (-${round(loss_6m/6.0):,.0f}/mo)'
+            },
+            'in_12_months': {
+                'timeline': 'Sell in 12 Months (+12,000 mi, +1 Yr)',
+                'projected_price': cf_12m_price,
+                'depreciation_loss': loss_12m,
+                'monthly_rate': round(loss_12m / 12.0, 2),
+                'recommendation': f'Projected loss of -${loss_12m:,.0f} (-${round(loss_12m/12.0):,.0f}/mo)'
+            },
+            'methodology_note': 'Derived strictly from model counterfactuals assuming 12,000 miles/year accumulation. Smooth exponential decay; no artificial cliff assumptions.'
+        }
+
         return {
             'fair_resale_price': estimated_price,
             'prediction_interval_95': (lower_bound, upper_bound),
@@ -301,11 +342,12 @@ class CarValuationEngine:
                 'condition_upgrade': cond_advice,
                 'mileage_increment': mileage_advice
             },
+            'selling_window': selling_window,
             'model_info': {
                 'architecture': 'Production LightGBM Regressor (Monotonic Constraints)',
-                'reference_year': 2024,
-                'test_mape': self.metrics.get('final_model', {}).get('MAPE (%)', 8.14),
-                'test_r2': self.metrics.get('final_model', {}).get('R2', 0.9629),
+                'reference_year': 2026,
+                'test_mape': self.metrics.get('final_model', {}).get('MAPE (%)', 8.13),
+                'test_r2': self.metrics.get('final_model', {}).get('R2', 0.9659),
                 'latency_ms': 14.8
             }
         }

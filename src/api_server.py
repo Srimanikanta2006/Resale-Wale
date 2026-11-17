@@ -118,11 +118,12 @@ def predict_valuation(req: ValuationRequest):
             "drivers": res['drivers'],
             "trajectory": res['trajectory'],
             "counterfactuals": res['counterfactuals'],
+            "selling_window": res.get('selling_window', {}),
             "model_meta": {
                 "architecture": "LightGBM Regressor (Monotonic Constraints)",
-                "reference_year": 2024,
-                "test_r2": final_meta.get('R2', 0.9629),
-                "test_mape": final_meta.get('MAPE (%)', 8.14),
+                "reference_year": 2026,
+                "test_r2": final_meta.get('R2', 0.9659),
+                "test_mape": final_meta.get('MAPE (%)', 8.13),
                 "latency_ms": max(0.5, latency)
             }
         }

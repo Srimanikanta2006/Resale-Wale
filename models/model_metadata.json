@@ -28,7 +28,7 @@
         "Excellent"
     ],
     "min_year": 2008,
-    "max_year": 2024,
+    "max_year": 2026,
     "engine_capacity_range": [
         0,
         5038
@@ -37,14 +37,14 @@
         1885,
         280000
     ],
-    "base_expected_price": 14653.7,
-    "q_lower_log": -0.19647667695224413,
-    "q_upper_log": 0.18477011042041314,
+    "base_expected_price": 11856.25,
+    "q_lower_log": -0.19355888780843022,
+    "q_upper_log": 0.17639477123648728,
     "metrics": {
-        "RMSE": 2167.8,
-        "MAE": 1437.13,
-        "MedAE": 938.12,
-        "MAPE (%)": 8.14,
-        "R2": 0.9629
+        "RMSE": 1854.2,
+        "MAE": 1185.46,
+        "MedAE": 738.24,
+        "MAPE (%)": 8.13,
+        "R2": 0.9659
     }
 }

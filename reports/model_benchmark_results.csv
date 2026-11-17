@@ -1,7 +1,7 @@
 RMSE,MAE,MedAE,MAPE (%),R2,Model,Train_Time_Sec
-11596.61,8560.52,7188.6,75.24,-0.0,Naive Baseline (Mean),0.0
-11801.01,8367.5,6723.11,65.22,-0.0356,Naive Baseline (Median),0.0
-2811.35,1711.99,1050.34,9.33,0.9412,Ridge Regression,0.08
-2430.94,1567.2,987.99,8.74,0.9561,Random Forest Regressor,1.57
-2219.99,1438.34,909.03,7.96,0.9634,XGBoost Regressor,0.92
-2254.93,1472.6,940.3,8.19,0.9622,LightGBM Regressor,1.08
+10353.36,7601.04,6561.41,81.98,-0.0001,Naive Baseline (Mean),0.0
+10617.08,7366.67,5822.64,67.8,-0.0517,Naive Baseline (Median),0.0
+2576.98,1483.84,854.76,9.58,0.938,Ridge Regression,0.14
+2041.39,1294.82,807.68,8.78,0.9611,Random Forest Regressor,3.65
+1893.87,1193.22,734.36,7.96,0.9665,XGBoost Regressor,1.11
+1947.33,1226.74,737.63,8.21,0.9646,LightGBM Regressor,1.36
