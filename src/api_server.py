@@ -147,15 +147,19 @@ def get_comps(
     model_year: Optional[int] = Query(None),
     year: Optional[int] = Query(None),
     mileage: float = Query(34250.0),
+    engine_capacity: Optional[float] = Query(None),
+    engine_cc: Optional[float] = Query(None),
     fuel_type: str = Query("Petrol"),
+    transmission: Optional[str] = Query(None),
+    number_of_owners: Optional[int] = Query(None),
+    owners: Optional[int] = Query(None),
+    condition: Optional[str] = Query(None),
     limit: int = Query(6)
 ):
     """
     Returns verified comparable records from the 25,000 dataset:
-    - Same Make
-    - Same Fuel Type (no diesel shown for petrol)
-    - Model Year within +/- 2 years
-    - Nearest odometer distance
+    - Same Make & Fuel Type
+    - Closest multidimensional distance across all 8 features
     """
     if df_marketplace.empty:
         return {"comps": [], "total_matching": 0, "avg_price_in_sample": 0}
@@ -165,6 +169,13 @@ def get_comps(
     fuel_clean = fuel_type.strip().capitalize()
     if fuel_clean in ['Gasoline', 'Petrol']:
         fuel_clean = 'Petrol'
+
+    target_engine = float(engine_capacity if engine_capacity is not None else (engine_cc if engine_cc is not None else 1998.0))
+    target_trans = (transmission or "Automatic").strip().capitalize()
+    target_owners = int(number_of_owners if number_of_owners is not None else (owners if owners is not None else 1))
+    target_cond = (condition or "Excellent").strip()
+    cond_map = {'Fair': 1, 'Good': 2, 'Very Good': 3, 'Excellent': 4}
+    target_cond_num = cond_map.get(target_cond, 4)
 
     # Filter 1: Same make
     sub = df_marketplace[df_marketplace['manufacturer'].str.lower() == make_clean.lower()].copy()
@@ -176,13 +187,16 @@ def get_comps(
     if not fuel_sub.empty:
         sub = fuel_sub
 
-    # Filter 3: Year proximity (+/- 2 years preferred)
-    year_sub = sub[np.abs(sub['model_year'] - target_year) <= 2]
-    if len(year_sub) >= limit:
-        sub = year_sub
-
-    # Distance function for ranking
-    sub['dist'] = np.abs(sub['model_year'] - target_year) * 2000.0 + np.abs(sub['mileage'] - mileage) * 0.15
+    # Multidimensional distance across all 8 features
+    sub_cond_num = sub['condition'].map(cond_map).fillna(2)
+    sub['dist'] = (
+        np.abs(sub['model_year'] - target_year) * 3500.0 +
+        np.abs(sub['mileage'] - mileage) * 0.10 +
+        np.abs(sub['engine_capacity'] - target_engine) * 6.0 +
+        np.abs(sub['number_of_owners'] - target_owners) * 3000.0 +
+        np.abs(sub_cond_num - target_cond_num) * 4000.0 +
+        (sub['transmission'].str.lower() != target_trans.lower()).astype(float) * 2500.0
+    )
     top = sub.nsmallest(limit, 'dist')
 
     comps = []
